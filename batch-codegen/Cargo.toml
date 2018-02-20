@@ -1,0 +1,17 @@
+[package]
+name = "batch-codegen"
+description = "Procedural macros for the batch crate"
+repository = "https://github.com/kureuil/batch-rs"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["Louis Person <louis@person.guru>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.12"
+quote = "0.4"
+
+[features]
+default = []

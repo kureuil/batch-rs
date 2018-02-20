@@ -1,0 +1,5 @@
+[workspace]
+members = [
+	"batch",
+	"batch-codegen",
+]

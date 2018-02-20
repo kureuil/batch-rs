@@ -1,0 +1,34 @@
+language: rust
+sudo: required
+dist: trusty
+cache: cargo
+
+services:
+  - rabbitmq
+
+matrix:
+  fast_finish: true
+  allow_failures:
+  - rust: nightly
+  include:
+  - rust: stable
+    env: RUSTFMT=YES 
+    script:
+    - rustup component add rustfmt-preview
+    - cargo fmt -- --write-mode=diff
+  - rust: stable
+  - rust: beta
+  - rust: nightly
+
+before_install:
+  - sudo apt-get install -qq -y dnsmasq
+  - echo "listen-address=127.0.0.1" | sudo tee -a /etc/dnsmasq.conf > /dev/null
+  - echo "user=root" | sudo tee -a /etc/dnsmasq.conf > /dev/null
+  - sudo service dnsmasq restart
+
+script:
+  - cargo test --all
+
+notifications:
+  email:
+    on_success: never
