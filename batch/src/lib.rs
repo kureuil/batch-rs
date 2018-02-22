@@ -48,6 +48,7 @@
 //! }
 //! ```
 
+#![doc(html_root_url = "https://docs.rs/batch/0.1.0")]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 #![allow(unused_imports)]
