@@ -10,8 +10,9 @@
 //! #[macro_use]
 //! extern crate batch;
 //! extern crate futures;
-//! #[macro_use]
 //! extern crate serde;
+//! #[macro_use]
+//! extern crate serde_derive;
 //! extern crate tokio_core;
 //!
 //! use batch::{exchange, job, ClientBuilder};
@@ -63,8 +64,9 @@ extern crate lapin_futures_rustls as lapin_rustls;
 extern crate lapin_futures_tls_api as lapin_tls_api;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio_core;
 extern crate uuid;

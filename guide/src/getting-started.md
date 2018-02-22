@@ -27,8 +27,9 @@ Now, that we're connected to our broker, we'll create our first task. A task is 
 ```rust
 #[macro_use]
 extern crate batch;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 
 use batch::ClientBuilder;
@@ -63,8 +64,9 @@ Now that we have our task, we can send it to our message broker:
 #[macro_use]
 extern crate batch;
 extern crate futures;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 
 use batch::{job, ClientBuilder};
@@ -103,8 +105,9 @@ Now that our task has been published to our broker, we'll need to fetch it and a
 ```rust
 #[macro_use]
 extern crate batch;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 
 use batch::{queue, WorkerBuilder};
@@ -137,8 +140,9 @@ In order to register our task on the worker, we'll need to make it executable by
 ```rust
 #[macro_use]
 extern crate batch;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 
 use batch::{queue, Perform, WorkerBuilder};

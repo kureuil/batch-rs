@@ -179,8 +179,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// ```
     /// # #[macro_use]
     /// # extern crate batch;
-    /// # #[macro_use]
     /// # extern crate serde;
+    /// # #[macro_use]
+    /// # extern crate serde_derive;
     /// #
     /// use batch::{Perform, WorkerBuilder};
     ///
@@ -287,8 +288,9 @@ impl<Ctx> Worker<Ctx> {
     ///         .unwrap();
     ///     let task = worker.run();
     ///
-    ///     // In your code, un-comment the next line:
-    ///     // core.run(task).unwrap();
+    /// # if false {
+    ///     core.run(task).unwrap();
+    /// # }
     /// }
     /// ```
     pub fn run(self) -> Box<Future<Item = (), Error = error::Error>> {
