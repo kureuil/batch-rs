@@ -1,17 +1,13 @@
 //! Batch client.
 
-use std::fmt;
 use std::iter::FromIterator;
-use std::sync::{Arc, Mutex};
-use std::result::Result as StdResult;
 
-use futures::{future, Future, IntoFuture};
+use futures::{future, Future};
 use tokio_core::reactor::Handle;
 
-use error::{Error, ErrorKind, Result};
+use error::{Error, ErrorKind};
 use job::Job;
 use rabbitmq::{Exchange, ExchangeBuilder, RabbitmqBroker};
-use task::Task;
 
 /// A builder to ease the construction of `Client` instances.
 #[derive(Debug)]
@@ -112,11 +108,7 @@ impl ClientBuilder {
             self.exchanges,
             vec![],
             self.handle.unwrap(),
-        ).and_then(|broker| {
-            Ok(Client {
-                broker: Arc::new(broker),
-            })
-        });
+        ).and_then(|broker| Ok(Client { broker }));
         Box::new(task)
     }
 }
@@ -124,7 +116,7 @@ impl ClientBuilder {
 /// The `Client` is responsible for sending tasks to the broker.
 #[derive(Debug)]
 pub struct Client {
-    broker: Arc<RabbitmqBroker>,
+    broker: RabbitmqBroker,
 }
 
 impl Client {
@@ -133,8 +125,7 @@ impl Client {
     /// Once a job is sent to the message broker, it is transmitted to a Worker currently
     /// receiving jobs from the same broker.
     pub(crate) fn send(&self, job: &Job) -> Box<Future<Item = (), Error = Error>> {
-        let broker = Arc::clone(&self.broker);
-        let task = broker.send(job);
+        let task = self.broker.send(job);
         Box::new(task)
     }
 }
