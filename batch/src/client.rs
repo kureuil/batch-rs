@@ -108,11 +108,7 @@ impl ClientBuilder {
             self.exchanges,
             vec![],
             self.handle.unwrap(),
-        ).and_then(|broker| {
-            Ok(Client {
-                broker,
-            })
-        });
+        ).and_then(|broker| Ok(Client { broker }));
         Box::new(task)
     }
 }
