@@ -10,7 +10,7 @@ readme = "README.md"
 keywords = ["task queue", "rabbitmq", "amqp", "asynchronous"]
 categories = ["asynchronous"]
 
-[bagdes]
+[badges]
 travis-ci = { repository = "kureuil/batch-rs" }
 
 [dependencies]
