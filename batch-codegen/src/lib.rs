@@ -4,6 +4,7 @@
 //! #[derive(Task)]
 //! ```
 
+#![doc(html_root_url = "https://docs.rs/batch-codegen/0.1.0")]
 #![deny(missing_debug_implementations)]
 #![recursion_limit = "128"]
 

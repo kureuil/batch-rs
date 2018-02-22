@@ -2,8 +2,9 @@
 extern crate batch;
 extern crate env_logger;
 extern crate futures;
-#[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 
 use batch::{exchange, job, ClientBuilder};

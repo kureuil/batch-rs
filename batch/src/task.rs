@@ -17,8 +17,9 @@ use error::Result;
 /// ```rust
 /// #[macro_use]
 /// extern crate batch;
-/// #[macro_use]
 /// extern crate serde;
+/// #[macro_use]
+/// extern crate serde_derive;
 ///
 /// #[derive(Deserialize, Serialize, Task)]
 /// #[task_routing_key = "emails"]
@@ -33,8 +34,9 @@ use error::Result;
 /// ```rust
 /// #[macro_use]
 /// extern crate batch;
-/// #[macro_use]
 /// extern crate serde;
+/// #[macro_use]
+/// extern crate serde_derive;
 ///
 /// struct App;
 ///
@@ -72,8 +74,9 @@ pub trait Task: DeserializeOwned + Serialize {
 /// ```
 /// #[macro_use]
 /// extern crate batch;
-/// #[macro_use]
 /// extern crate serde;
+/// #[macro_use]
+/// extern crate serde_derive;
 ///
 /// use batch::Perform;
 ///
