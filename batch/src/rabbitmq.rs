@@ -172,7 +172,7 @@ impl RabbitmqBroker {
     ///
     /// This method consumes the current connection in order to avoid mixing publishing
     /// and consuming jobs on the same connection (which more often than not leads to issues).
-    pub fn recv(self) -> Box<Future<Item = RabbitmqStream, Error = Error>> {
+    pub fn recv(self) -> Box<Future<Item = RabbitmqConsumer, Error = Error>> {
         let consumer_exchanges = self.exchanges.clone();
         let consumer_queues = self.queues.clone();
         let queues = self.queues.clone();
@@ -203,7 +203,7 @@ impl RabbitmqBroker {
                 let consumer = consumers
                     .into_iter()
                     .fold(initial, |acc, consumer| Box::new(acc.select(consumer)));
-                future::ok(RabbitmqStream {
+                future::ok(RabbitmqConsumer {
                     channel,
                     stream: consumer,
                 })
@@ -244,18 +244,18 @@ impl RabbitmqBroker {
 ///
 /// The type of the stream is a tuple containing a `u64` which is a unique ID for the
 /// job used when `ack`'ing or `reject`'ing it, and a `Job` instance.
-pub struct RabbitmqStream {
+pub struct RabbitmqConsumer {
     channel: Channel<AMQPStream>,
     stream: Box<Stream<Item = Message, Error = io::Error> + Send>,
 }
 
-impl fmt::Debug for RabbitmqStream {
+impl fmt::Debug for RabbitmqConsumer {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(f, "RabbitmqStream {{ }}")
     }
 }
 
-impl RabbitmqStream {
+impl RabbitmqConsumer {
     /// Acknowledge the successful execution of a `Task`.
     ///
     /// Returns a `Future` that completes once the `ack` is sent to the broker.
@@ -277,7 +277,7 @@ impl RabbitmqStream {
     }
 }
 
-impl Stream for RabbitmqStream {
+impl Stream for RabbitmqConsumer {
     type Item = (u64, Job);
     type Error = Error;
 
