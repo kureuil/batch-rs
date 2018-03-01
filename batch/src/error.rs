@@ -41,6 +41,10 @@ pub enum ErrorKind {
     #[fail(display = "This URL scheme is invalid: {}", _0)]
     InvalidScheme(::std::string::String),
 
+    /// The given priority is invalid, must be one of: trivial, low, normal, high, critical.
+    #[fail(display = "Invalid priority, must be one of: trivial, low, normal, high, critical.")]
+    InvalidPriority,
+
     /// An error occured in the RabbitMQ broker.
     #[fail(display = "An error occured in the RabbitMQ broker: {}", _0)]
     Rabbitmq(#[cause] ::std::io::Error),
@@ -96,6 +100,14 @@ impl Error {
     pub fn is_no_handle(&self) -> bool {
         match *self.kind() {
             ErrorKind::NoHandle => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the error is from an invalid priority.
+    pub fn is_invalid_priority(&self) -> bool {
+        match *self.kind() {
+            ErrorKind::InvalidPriority => true,
             _ => false,
         }
     }

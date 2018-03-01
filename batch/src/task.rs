@@ -1,10 +1,12 @@
 //! A trait representing an executable task.
 
-use serde::Serialize;
-use serde::de::DeserializeOwned;
+use std::str::FromStr;
 use std::time::Duration;
 
-use error::Result;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+use error::{Error, ErrorKind, Result};
 
 /// An executable task and its related metadata (name, queue, timeout, etc.)
 ///
@@ -65,6 +67,69 @@ pub trait Task: DeserializeOwned + Serialize {
 
     /// An optional duration representing the time allowed for this task's handler to complete.
     fn timeout() -> Option<Duration>;
+
+    /// The priority associated to this task.
+    fn priority() -> Priority;
+}
+
+/// The different priorities that can be assigned to a `Task`.
+///
+/// The default value is `Priority::Normal`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Priority {
+    /// The lowest available priority for a task.
+    Trivial,
+    /// A lower priority than `Priority::Normal` but higher than `Priority::Trivial`.
+    Low,
+    /// The default priority for a task.
+    Normal,
+    /// A higher priority than `Priority::Normal` but higher than `Priority::Critical`.
+    High,
+    /// The highest available priority for a task.
+    Critical,
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Priority::Normal
+    }
+}
+
+impl FromStr for Priority {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "trivial" => Ok(Priority::Trivial),
+            "low" => Ok(Priority::Low),
+            "normal" => Ok(Priority::Normal),
+            "high" => Ok(Priority::High),
+            "critical" => Ok(Priority::Critical),
+            _ => Err(ErrorKind::InvalidPriority)?,
+        }
+    }
+}
+
+impl Priority {
+    /// Return the priority as a `u8` ranging from 0 to 4.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use batch::Priority;
+    ///
+    /// let p = Priority::Normal;
+    /// assert_eq!(p.to_u8(), 2);
+    /// ```
+    pub fn to_u8(&self) -> u8 {
+        match *self {
+            Priority::Trivial => 0,
+            Priority::Low => 1,
+            Priority::Normal => 2,
+            Priority::High => 3,
+            Priority::Critical => 4,
+        }
+    }
 }
 
 /// The `Perform` trait allow marking a `Task` as executable.

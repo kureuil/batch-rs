@@ -14,7 +14,7 @@ use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, 
                      ExchangeBindOptions, ExchangeDeclareOptions, QueueBindOptions,
                      QueueDeclareOptions};
 use lapin::client::{Client, ConnectionOptions};
-use lapin::types::FieldTable;
+use lapin::types::{AMQPValue, FieldTable};
 use lapin_async::queue::Message;
 use lapin_rustls::AMQPConnectionRustlsExt;
 use lapin_tls_api::AMQPStream;
@@ -215,7 +215,11 @@ impl RabbitmqBroker {
     /// Send a job to the broker.
     ///
     /// Returns a `Future` that completes once the job is sent to the broker.
-    pub fn send(&self, job: &Job) -> Box<Future<Item = (), Error = Error>> {
+    pub fn send(
+        &self,
+        job: &Job,
+        properties: BasicProperties,
+    ) -> Box<Future<Item = (), Error = Error>> {
         let channel = self.publish_channel.clone();
         let serialized = match ser::to_vec(&job) {
             Ok(serialized) => serialized,
@@ -227,7 +231,7 @@ impl RabbitmqBroker {
                 job.queue(),
                 &serialized,
                 &BasicPublishOptions::default(),
-                BasicProperties::default(),
+                properties,
             )
             .and_then(move |_| future::ok(()))
             .map_err(|e| ErrorKind::Rabbitmq(e).into());
@@ -468,6 +472,7 @@ impl Queue {
 pub struct QueueBuilder {
     name: String,
     bindings: BTreeSet<Binding>,
+    arguments: FieldTable,
 }
 
 impl QueueBuilder {
@@ -484,6 +489,7 @@ impl QueueBuilder {
         QueueBuilder {
             name: name.into(),
             bindings: BTreeSet::new(),
+            arguments: FieldTable::new(),
         }
     }
 
@@ -507,13 +513,29 @@ impl QueueBuilder {
         self
     }
 
+    /// Enable task priorities on this queue.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// QueueBuilder::new("video-transcoding")
+    ///     .enable_priorities();
+    /// ```
+    pub fn enable_priorities(mut self) -> Self {
+        self.arguments
+            .insert("x-max-priority".to_string(), AMQPValue::ShortShortUInt(4));
+        self
+    }
+
     /// Create a new `Queue` instance from this builder data.
     pub(crate) fn build(self) -> Queue {
         Queue {
             name: self.name,
             bindings: self.bindings,
             options: QueueDeclareOptions::default(),
-            arguments: FieldTable::new(),
+            arguments: self.arguments,
         }
     }
 }

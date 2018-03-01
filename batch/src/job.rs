@@ -5,12 +5,13 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 
 use futures::Future;
+use lapin::channel::BasicProperties;
 use uuid::Uuid;
 
 use client::Client;
 use error::{self, Error, Result};
 use rabbitmq::Exchange;
-use task::Task;
+use task::{Priority, Task};
 use ser;
 
 /// A `Query` is responsible for publishing jobs to `RabbitMQ`.
@@ -23,6 +24,7 @@ where
     routing_key: String,
     timeout: Option<Duration>,
     retries: u32,
+    properties: BasicProperties,
 }
 
 impl<T> fmt::Debug for Query<T>
@@ -32,8 +34,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(
             f,
-            "Query {{ exchange: {:?} routing_key: {:?} timeout: {:?} retries: {:?} }}",
-            self.exchange, self.routing_key, self.timeout, self.retries
+            "Query {{ exchange: {:?} routing_key: {:?} timeout: {:?} retries: {:?} properties: {:?} }}",
+            self.exchange, self.routing_key, self.timeout, self.retries, self.properties
         )
     }
 }
@@ -44,12 +46,17 @@ where
 {
     /// Create a new `Query` from a `Task` instance.
     pub fn new(task: T) -> Self {
+        let properties = BasicProperties {
+            priority: Some(T::priority().to_u8()),
+            ..Default::default()
+        };
         Query {
             task,
             exchange: T::exchange().into(),
             routing_key: T::routing_key().into(),
             timeout: T::timeout(),
             retries: T::retries(),
+            properties,
         }
     }
 
@@ -77,6 +84,12 @@ where
         self
     }
 
+    /// Set the priority for this task.
+    pub fn priority(mut self, priority: Priority) -> Self {
+        self.properties.priority = Some(priority.to_u8());
+        self
+    }
+
     /// Send the job using the given client.
     pub fn send(self, client: &Client) -> Box<Future<Item = (), Error = Error>> {
         let serialized = ser::to_vec(&self.task)
@@ -90,7 +103,7 @@ where
             timeout: self.timeout,
             retries: self.retries,
         };
-        client.send(&job)
+        client.send(&job, self.properties)
     }
 }
 

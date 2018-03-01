@@ -45,7 +45,9 @@
 //!         job(task).exchange("batch.example").send(&client)
 //!     });
 //!
+//! # if false {
 //!     core.run(send).unwrap();
+//! # }
 //! }
 //! ```
 
@@ -94,5 +96,5 @@ pub use client::{Client, ClientBuilder};
 pub use error::Error;
 pub use job::{job, Query};
 pub use rabbitmq::{exchange, queue, ExchangeBuilder, QueueBuilder};
-pub use task::{Perform, Task};
+pub use task::{Perform, Priority, Task};
 pub use worker::{Worker, WorkerBuilder};
