@@ -95,14 +95,14 @@ where
         let serialized = ser::to_vec(&self.task)
             .map_err(error::ErrorKind::Serialization)
             .unwrap();
-        let job = Job {
-            uuid: Uuid::new_v4(),
-            name: String::from(T::name()),
-            queue: self.routing_key,
-            task: serialized,
-            timeout: self.timeout,
-            retries: self.retries,
-        };
+        let job = Job::new(
+            T::name(),
+            &self.exchange,
+            &self.routing_key,
+            &serialized,
+            self.timeout,
+            self.retries,
+        );
         client.send(&job, self.properties)
     }
 }
@@ -120,13 +120,34 @@ where
 pub struct Job {
     uuid: Uuid,
     name: String,
-    queue: String,
+    exchange: String,
+    routing_key: String,
     task: Vec<u8>,
     timeout: Option<Duration>,
     retries: u32,
 }
 
 impl Job {
+    /// Create a new Job.
+    pub(crate) fn new(
+        name: &str,
+        exchange: &str,
+        routing_key: &str,
+        task: &[u8],
+        timeout: Option<Duration>,
+        retries: u32,
+    ) -> Job {
+        Job {
+            uuid: Uuid::new_v4(),
+            name: name.to_string(),
+            exchange: exchange.to_string(),
+            routing_key: routing_key.to_string(),
+            task: task.to_vec(),
+            timeout,
+            retries,
+        }
+    }
+
     /// Returns the UUIDv4 of this job.
     pub fn uuid(&self) -> &Uuid {
         &self.uuid
@@ -137,9 +158,14 @@ impl Job {
         &self.name
     }
 
+    /// Returns the exchange this job should be sent to.
+    pub fn exchange(&self) -> &str {
+        &self.exchange
+    }
+
     /// Returns the queue this job should be pushed to.
-    pub fn queue(&self) -> &str {
-        &self.queue
+    pub fn routing_key(&self) -> &str {
+        &self.routing_key
     }
 
     /// Returns the raw serialized task this job is associated to.
