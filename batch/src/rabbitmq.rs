@@ -227,8 +227,8 @@ impl RabbitmqBroker {
         };
         let task = channel
             .basic_publish(
-                "",
-                job.queue(),
+                job.exchange(),
+                job.routing_key(),
                 &serialized,
                 &BasicPublishOptions::default(),
                 properties,
