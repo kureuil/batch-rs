@@ -121,7 +121,7 @@ impl Priority {
     /// let p = Priority::Normal;
     /// assert_eq!(p.to_u8(), 2);
     /// ```
-    pub fn to_u8(&self) -> u8 {
+    pub(crate) fn to_u8(&self) -> u8 {
         match *self {
             Priority::Trivial => 0,
             Priority::Low => 1,
