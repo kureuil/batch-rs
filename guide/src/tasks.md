@@ -32,7 +32,7 @@ This value is used to register and identify tasks in the worker, mapping a `task
 
 > **Default value**: empty string (default RabbitMQ exchange)
 
-This value is used when publishing a task to RabbitMQ. If you set a custom exchange name, you must ensure that it is declared before using it (see [`ClientBuilder::exchanges`](https://docs.rs/batch/0.1/batch/struct.ClientBuilder.html#method.exchanges)).
+This value is used when publishing a task to RabbitMQ. If you set a custom exchange name, you must ensure that it is declared before using it (see [`ClientBuilder::exchanges`]).
 
 ## `task_timeout` attribute
 
@@ -44,4 +44,13 @@ This attribute gives the number of seconds allowed before a task execution is co
 
 > **Default value**: 2
 
-The attribute gives the number of times a task should be tried again in case of failure. When a task is retried, it is pushed as a new task would be with the exact same attributes except for the `task_retries` attribute that gets decremented.
+This attribute gives the number of times a task should be tried again in case of failure. When a task is retried, it is pushed as a new task would be with the exact same attributes except for the `task_retries` attribute that gets decremented.
+
+## `task_priority` attribute
+
+> **Default value**: [`Priority::Normal`]
+
+This attribute is used to mark some jobs as more or less important than other and prioritize them for the consumer.
+
+[`ClientBuilder::exchanges`]: https://docs.rs/batch/0.1/batch/struct.ClientBuilder.html#method.exchanges
+[`Priority::Normal`]: https://docs.rs/batch/0.1/batch/enum.Priority.html
