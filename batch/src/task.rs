@@ -112,15 +112,6 @@ impl FromStr for Priority {
 
 impl Priority {
     /// Return the priority as a `u8` ranging from 0 to 4.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use batch::Priority;
-    ///
-    /// let p = Priority::Normal;
-    /// assert_eq!(p.to_u8(), 2);
-    /// ```
     pub(crate) fn to_u8(&self) -> u8 {
         match *self {
             Priority::Trivial => 0,
