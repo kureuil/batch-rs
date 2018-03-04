@@ -218,6 +218,7 @@ impl RabbitmqBroker {
     pub fn send(
         &self,
         job: &Job,
+        options: &BasicPublishOptions,
         properties: BasicProperties,
     ) -> Box<Future<Item = (), Error = Error>> {
         let channel = self.publish_channel.clone();
@@ -230,7 +231,7 @@ impl RabbitmqBroker {
                 job.exchange(),
                 job.routing_key(),
                 &serialized,
-                &BasicPublishOptions::default(),
+                options,
                 properties,
             )
             .and_then(move |_| future::ok(()))
