@@ -487,12 +487,14 @@ impl ExchangeBuilder {
     /// use lapin_futures::types::AMQPValue;
     /// use batch::ExchangeBuilder;
     ///
+    /// # fn main() {
     /// let mut builder = ExchangeBuilder::new("batch.example");
     /// {
     ///     let arguments = builder.arguments_mut();
     ///     arguments.insert("x-custom-argument".to_string(), AMQPValue::Boolean(true));
     ///     println!("Arguments: {:?}", arguments);
     /// }
+    /// # }
     /// ```
     pub fn arguments_mut(&mut self) -> &mut FieldTable {
         &mut self.arguments
@@ -657,12 +659,14 @@ impl QueueBuilder {
     /// use lapin_futures::types::AMQPValue;
     /// use batch::QueueBuilder;
     ///
+    /// # fn main() {
     /// let mut builder = QueueBuilder::new("video-transcoding");
     /// {
     ///     let arguments = builder.arguments_mut();
     ///     arguments.insert("x-custom-argument".to_string(), AMQPValue::Boolean(true));
     ///     println!("Arguments: {:?}", arguments);
     /// }
+    /// # }
     /// ```
     pub fn arguments_mut(&mut self) -> &mut FieldTable {
         &mut self.arguments
@@ -759,7 +763,7 @@ mod tests {
                     priority: Some(priority.to_u8()),
                     ..Default::default()
                 };
-                broker.send(&job, properties)
+                broker.send(&job, &BasicPublishOptions::default(), properties)
             });
             future::join_all(tasks)
         })
