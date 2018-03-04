@@ -576,7 +576,7 @@ mod tests {
         let task = RabbitmqBroker::new_with_handle(
             conn_url,
             exchanges.clone(),
-            vec![],
+            queues.clone(),
             handle.clone(),
         ).and_then(|broker| {
             let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
