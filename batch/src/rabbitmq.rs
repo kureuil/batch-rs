@@ -40,7 +40,7 @@ where
             if let Some(queue) = next {
                 let binding_channel = channel.clone();
                 let task = channel
-                    .queue_declare(&queue.name, &queue.options, &queue.arguments)
+                    .queue_declare(queue.name(), queue.options(), queue.arguments())
                     .and_then(move |_| {
                         future::join_all(queue.bindings().clone().into_iter().map(move |b| {
                             binding_channel.queue_bind(
@@ -544,14 +544,24 @@ impl cmp::Ord for Queue {
 }
 
 impl Queue {
-    /// Returns the name associated to this `Queue`.
+    /// Return the name of this `Queue`.
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Returns the bindings associated to this `Queue`.
+    /// Return the bindings associated to this `Queue`.
     pub(crate) fn bindings(&self) -> &BTreeSet<Binding> {
         &self.bindings
+    }
+
+    /// Return the options used when declaring this `Queue`.
+    pub fn options(&self) -> &QueueDeclareOptions {
+        &self.options
+    }
+
+    /// Return the arguments used when declaring this `Queue`.
+    pub fn arguments(&self) -> &FieldTable {
+        &self.arguments
     }
 }
 
@@ -560,6 +570,7 @@ impl Queue {
 pub struct QueueBuilder {
     name: String,
     bindings: BTreeSet<Binding>,
+    options: QueueDeclareOptions,
     arguments: FieldTable,
 }
 
@@ -577,8 +588,83 @@ impl QueueBuilder {
         QueueBuilder {
             name: name.into(),
             bindings: BTreeSet::new(),
+            options: QueueDeclareOptions::default(),
             arguments: FieldTable::new(),
         }
+    }
+
+    /// Return a reference the declare options for this queue.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let builder = QueueBuilder::new("video-transcoding");
+    /// {
+    ///     let options = builder.options();
+    ///     println!("Options: {:?}", options);
+    /// }
+    /// ```
+    pub fn options(&self) -> &QueueDeclareOptions {
+        &self.options
+    }
+
+    /// Return a mutable reference the declare options for this queue.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding");
+    /// {
+    ///     let options = builder.options_mut();
+    ///     options.auto_delete = true;
+    ///     println!("Options: {:?}", options);
+    /// }
+    /// ```
+    pub fn options_mut(&mut self) -> &mut QueueDeclareOptions {
+        &mut self.options
+    }
+
+    /// Return a reference to the queue arguments.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let builder = QueueBuilder::new("video-transcoding");
+    /// {
+    ///     let arguments = builder.arguments();
+    ///     println!("Arguments: {:?}", arguments);
+    /// }
+    /// ```
+    pub fn arguments(&self) -> &FieldTable {
+        &self.arguments
+    }
+
+    /// Return a mutable reference to the queue arguments.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// extern crate batch;
+    /// extern crate lapin_futures;
+    ///
+    /// use lapin_futures::types::AMQPValue;
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding");
+    /// {
+    ///     let arguments = builder.arguments_mut();
+    ///     arguments.insert("x-custom-argument".to_string(), AMQPValue::Boolean(true));
+    ///     println!("Arguments: {:?}", arguments);
+    /// }
+    /// ```
+    pub fn arguments_mut(&mut self) -> &mut FieldTable {
+        &mut self.arguments
     }
 
     /// Bind this queue to an exchange via a routing key.
@@ -622,7 +708,7 @@ impl QueueBuilder {
         Queue {
             name: self.name,
             bindings: self.bindings,
-            options: QueueDeclareOptions::default(),
+            options: self.options,
             arguments: self.arguments,
         }
     }
