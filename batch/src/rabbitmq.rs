@@ -14,7 +14,7 @@ use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, 
                      ExchangeBindOptions, ExchangeDeclareOptions, QueueBindOptions,
                      QueueDeclareOptions};
 use lapin::client::{Client, ConnectionOptions};
-use lapin::types::FieldTable;
+use lapin::types::{AMQPValue, FieldTable};
 use lapin_async::queue::Message;
 use lapin_rustls::AMQPConnectionRustlsExt;
 use lapin_tls_api::AMQPStream;
@@ -215,7 +215,11 @@ impl RabbitmqBroker {
     /// Send a job to the broker.
     ///
     /// Returns a `Future` that completes once the job is sent to the broker.
-    pub fn send(&self, job: &Job) -> Box<Future<Item = (), Error = Error>> {
+    pub fn send(
+        &self,
+        job: &Job,
+        properties: BasicProperties,
+    ) -> Box<Future<Item = (), Error = Error>> {
         let channel = self.publish_channel.clone();
         let serialized = match ser::to_vec(&job) {
             Ok(serialized) => serialized,
@@ -223,11 +227,11 @@ impl RabbitmqBroker {
         };
         let task = channel
             .basic_publish(
-                "",
-                job.queue(),
+                job.exchange(),
+                job.routing_key(),
                 &serialized,
                 &BasicPublishOptions::default(),
-                BasicProperties::default(),
+                properties,
             )
             .and_then(move |_| future::ok(()))
             .map_err(|e| ErrorKind::Rabbitmq(e).into());
@@ -468,6 +472,7 @@ impl Queue {
 pub struct QueueBuilder {
     name: String,
     bindings: BTreeSet<Binding>,
+    arguments: FieldTable,
 }
 
 impl QueueBuilder {
@@ -484,6 +489,7 @@ impl QueueBuilder {
         QueueBuilder {
             name: name.into(),
             bindings: BTreeSet::new(),
+            arguments: FieldTable::new(),
         }
     }
 
@@ -507,13 +513,29 @@ impl QueueBuilder {
         self
     }
 
+    /// Enable task priorities on this queue.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// QueueBuilder::new("video-transcoding")
+    ///     .enable_priorities();
+    /// ```
+    pub fn enable_priorities(mut self) -> Self {
+        self.arguments
+            .insert("x-max-priority".to_string(), AMQPValue::ShortShortUInt(4));
+        self
+    }
+
     /// Create a new `Queue` instance from this builder data.
     pub(crate) fn build(self) -> Queue {
         Queue {
             name: self.name,
             bindings: self.bindings,
             options: QueueDeclareOptions::default(),
-            arguments: FieldTable::new(),
+            arguments: self.arguments,
         }
     }
 }
@@ -521,4 +543,72 @@ impl QueueBuilder {
 /// Shorthand to create a new `QueueBuilder` instance.
 pub fn queue(name: &str) -> QueueBuilder {
     QueueBuilder::new(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use task::Priority;
+
+    #[test]
+    fn priority_queue() {
+        let mut core = Core::new().unwrap();
+        let ex = "batch.tests.priorities";
+        let rk = "prioritised-hello";
+        let jobs = vec![
+            (Job::new("job-1", ex, rk, &[], None, 0), Priority::Normal),
+            (Job::new("job-2", ex, rk, &[], None, 0), Priority::Critical),
+            (Job::new("job-3", ex, rk, &[], None, 0), Priority::Trivial),
+            (Job::new("job-4", ex, rk, &[], None, 0), Priority::High),
+            (Job::new("job-5", ex, rk, &[], None, 0), Priority::Low),
+        ];
+        let expected = vec!["job-2", "job-4", "job-1", "job-5", "job-3"];
+
+        let conn_url = "amqp://localhost/%2f";
+        let exchanges = vec![exchange(ex).build()];
+        let queues = vec![
+            queue("tests.priorities")
+                .enable_priorities()
+                .bind(ex, rk)
+                .build(),
+        ];
+        let handle = core.handle();
+        let task = RabbitmqBroker::new_with_handle(
+            conn_url,
+            exchanges.clone(),
+            queues.clone(),
+            handle.clone(),
+        ).and_then(|broker| {
+            let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
+                let properties = BasicProperties {
+                    priority: Some(priority.to_u8()),
+                    ..Default::default()
+                };
+                broker.send(&job, properties)
+            });
+            future::join_all(tasks)
+        })
+            .and_then(move |_| RabbitmqBroker::new_with_handle(conn_url, exchanges, queues, handle))
+            .and_then(|broker| broker.recv())
+            .and_then(|consumer| {
+                future::loop_fn((consumer.into_future(), expected.clone()), |(f, order)| {
+                    f.map_err(|(e, _)| e)
+                        .and_then(move |(next, consumer)| {
+                            let head = order[0];
+                            let tail = order.into_iter().skip(1).collect::<Vec<_>>();
+                            let (uid, job) = next.unwrap();
+                            assert_eq!(job.name(), head);
+                            consumer.ack(uid).map(|_| (consumer, tail))
+                        })
+                        .and_then(|(consumer, order)| {
+                            if order.is_empty() {
+                                Ok(future::Loop::Break(()))
+                            } else {
+                                Ok(future::Loop::Continue((consumer.into_future(), order)))
+                            }
+                        })
+                })
+            });
+        core.run(task).unwrap();
+    }
 }
