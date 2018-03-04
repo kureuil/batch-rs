@@ -56,7 +56,7 @@ pub fn task_derive(input: TokenStream) -> TokenStream {
         impl ::batch::Task for #name {
 
             fn name() -> &'static str {
-                #task_name
+                concat!(concat!(module_path!(), "::"), #task_name)
             }
 
             fn exchange() -> &'static str {
