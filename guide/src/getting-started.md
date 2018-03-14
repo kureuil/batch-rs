@@ -1,6 +1,7 @@
 # Getting started
 
-The first thing you'll want to do once you've installed `batch` is connect to a RabbitMQ broker. We'll start by creating a `Client`:
+The first thing you'll want to do once you've installed `batch` is connect to a
+RabbitMQ broker. We'll start by creating a `Client`:
 
 ```rust
 extern crate batch;
@@ -22,7 +23,11 @@ fn main() {
 }
 ```
 
-Now, that we're connected to our broker, we'll create our first task. A task is a work of unit that you want to asynchronously, becuse handling synchronously isn't possible or wouldn't be ideal (e.g sending a mail from a web API). The easiest of creating a task, is by declaring a structure, and derive `Task` on it:
+Now, that we're connected to our broker, we'll create our first task. A task is
+a work of unit that you want to asynchronously, becuse handling synchronously is
+not possible or wouldn't be ideal (e.g sending a mail from a web API). The
+easiest of creating a task, is by declaring a structure, and derive `Task` on
+it:
 
 ```rust
 #[macro_use]
@@ -54,9 +59,12 @@ fn main() {
 }
 ```
 
-> **Note**: you can see that in addition to `Task`, we're also deriving `serde`'s `Serialize` & `Deserialize` traits. This is necessary in order to safely send task over the network.
+> **Note**: you can see that in addition to `Task`, we're also deriving
+`serde`'s `Serialize` & `Deserialize` traits. This is necessary in order to
+safely send task over the network.
 
-> **Note**: When deriving `Task` we added the (mandatory) `task_routing_key` attribute, it is used by RabbitMQ to deliver your message to the right worker.
+> **Note**: When deriving `Task` we added the (mandatory) `task_routing_key`
+attribute, it is used by RabbitMQ to deliver your message to the right worker.
 
 Now that we have our task, we can send it to our message broker:
 
@@ -100,7 +108,9 @@ fn main() {
 }
 ```
 
-Now that our task has been published to our broker, we'll need to fetch it and assign a function to this task. To do this, we'll create a new program, the *worker*:
+Now that our task has been published to our broker, we'll need to fetch it and
+assign a function to this task. To do this, we'll create a new program, the
+*worker*:
 
 ```rust
 #[macro_use]
@@ -135,7 +145,8 @@ fn main() {
 }
 ```
 
-In order to register our task on the worker, we'll need to make it executable by implementing the `Perform` trait:
+In order to register our task on the worker, we'll need to make it executable by
+implementing the `Perform` trait:
 
 ```rust
 #[macro_use]
@@ -179,6 +190,6 @@ fn main() {
 }
 ```
 
-We can now run our *worker* program and see the `Hello Ferris!` message displayed in the terminal.
-
+We can now run our *worker* program and see the `Hello Ferris!` message
+displayed in the terminal.
 

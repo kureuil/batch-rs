@@ -5,7 +5,7 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 
 use futures::Future;
-use lapin::channel::BasicProperties;
+use lapin::channel::{BasicProperties, BasicPublishOptions};
 use uuid::Uuid;
 
 use client::Client;
@@ -24,18 +24,25 @@ where
     routing_key: String,
     timeout: Option<Duration>,
     retries: u32,
+    options: BasicPublishOptions,
     properties: BasicProperties,
 }
 
 impl<T> fmt::Debug for Query<T>
 where
-    T: Task,
+    T: Task + fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(
             f,
-            "Query {{ exchange: {:?} routing_key: {:?} timeout: {:?} retries: {:?} properties: {:?} }}",
-            self.exchange, self.routing_key, self.timeout, self.retries, self.properties
+            "Query {{ task: {:?} exchange: {:?} routing_key: {:?} timeout: {:?} retries: {:?} options: {:?} properties: {:?} }}",
+            self.task,
+            self.exchange,
+            self.routing_key,
+            self.timeout,
+            self.retries,
+            self.options,
+            self.properties
         )
     }
 }
@@ -56,8 +63,29 @@ where
             routing_key: T::routing_key().into(),
             timeout: T::timeout(),
             retries: T::retries(),
+            options: BasicPublishOptions::default(),
             properties,
         }
+    }
+
+    /// Return a reference the properties of this message.
+    pub fn properties(&self) -> &BasicProperties {
+        &self.properties
+    }
+
+    /// Return a mutable reference the properties of this message.
+    pub fn properties_mut(&mut self) -> &mut BasicProperties {
+        &mut self.properties
+    }
+
+    /// Return a reference the options of this message.
+    pub fn options(&self) -> &BasicPublishOptions {
+        &self.options
+    }
+
+    /// Return a mutable reference the options of this message.
+    pub fn options_mut(&mut self) -> &mut BasicPublishOptions {
+        &mut self.options
     }
 
     /// Set the exchange this task will be published to.
@@ -86,7 +114,10 @@ where
 
     /// Set the priority for this task.
     pub fn priority(mut self, priority: Priority) -> Self {
-        self.properties.priority = Some(priority.to_u8());
+        {
+            let properties = self.properties_mut();
+            properties.priority = Some(priority.to_u8());
+        }
         self
     }
 
@@ -103,7 +134,7 @@ where
             self.timeout,
             self.retries,
         );
-        client.send(&job, self.properties)
+        client.send(&job, &self.options, self.properties)
     }
 }
 

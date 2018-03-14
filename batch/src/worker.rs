@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{future, Future, IntoFuture, Stream};
-use lapin::channel::BasicProperties;
+use lapin::channel::{BasicProperties, BasicPublishOptions};
 use tokio_core::reactor::{Core, Handle};
 use wait_timeout::ChildExt;
 
@@ -382,7 +382,13 @@ fn reject(
     let task = consumer.reject(uid);
     if let Some(job) = job.failed() {
         debug!("[{}] Retry job after failure: {:?}", job.uuid(), job);
-        Box::new(task.and_then(move |_| broker.send(&job, BasicProperties::default())))
+        Box::new(task.and_then(move |_| {
+            broker.send(
+                &job,
+                &BasicPublishOptions::default(),
+                BasicProperties::default(),
+            )
+        }))
     } else {
         task
     }

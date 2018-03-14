@@ -3,7 +3,7 @@
 use std::iter::FromIterator;
 
 use futures::{future, Future};
-use lapin::channel::BasicProperties;
+use lapin::channel::{BasicProperties, BasicPublishOptions};
 use tokio_core::reactor::Handle;
 
 use error::{Error, ErrorKind};
@@ -128,9 +128,10 @@ impl Client {
     pub(crate) fn send(
         &self,
         job: &Job,
+        options: &BasicPublishOptions,
         properties: BasicProperties,
     ) -> Box<Future<Item = (), Error = Error>> {
-        let task = self.broker.send(job, properties);
+        let task = self.broker.send(job, options, properties);
         Box::new(task)
     }
 }
