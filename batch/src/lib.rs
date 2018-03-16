@@ -9,6 +9,7 @@
 //! ```rust
 //! #[macro_use]
 //! extern crate batch;
+//! # extern crate failure;
 //! extern crate futures;
 //! extern crate serde;
 //! #[macro_use]
@@ -16,6 +17,7 @@
 //! extern crate tokio_core;
 //!
 //! use batch::{exchange, job, ClientBuilder};
+//! # use failure::Error;
 //! use futures::Future;
 //! use tokio_core::reactor::Core;
 //!
@@ -26,7 +28,11 @@
 //! }
 //!
 //! fn main() {
-//!     let mut core = Core::new().unwrap();
+//! #   example().unwrap();
+//! # }
+//! #
+//! # fn example() -> Result<(), Error> {
+//!     let mut core = Core::new()?;
 //!     let handle = core.handle();
 //!
 //!     let exchanges = vec![
@@ -46,8 +52,9 @@
 //!     });
 //!
 //! # if false {
-//!     core.run(send).unwrap();
+//!     core.run(send)?;
 //! # }
+//! # Ok(())
 //! }
 //! ```
 
