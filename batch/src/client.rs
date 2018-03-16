@@ -82,16 +82,23 @@ impl ClientBuilder {
     ///
     /// ```
     /// # extern crate batch;
+    /// # extern crate failure;
     /// # extern crate tokio_core;
     /// #
     /// use batch::ClientBuilder;
+    /// # use failure::Error;
     /// use tokio_core::reactor::Core;
     ///
     /// # fn main() {
-    /// let core = Core::new().unwrap();
+    /// #     example().unwrap();
+    /// # }
+    /// #
+    /// # fn example() -> Result<(), Error> {
+    /// let core = Core::new()?;
     /// let handle = core.handle();
     /// let builder = ClientBuilder::new()
     ///     .handle(handle);
+    /// # Ok(())
     /// # }
     /// ```
     pub fn handle(mut self, handle: Handle) -> Self {

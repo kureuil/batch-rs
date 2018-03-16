@@ -154,16 +154,23 @@ impl<Ctx> WorkerBuilder<Ctx> {
     ///
     /// ```
     /// # extern crate batch;
+    /// # extern crate failure;
     /// # extern crate tokio_core;
     /// #
     /// use batch::WorkerBuilder;
+    /// # use failure::Error;
     /// use tokio_core::reactor::Core;
     ///
     /// # fn main() {
-    /// let core = Core::new().unwrap();
+    /// #     example().unwrap();
+    /// # }
+    /// #
+    /// # fn example() -> Result<(), Error> {
+    /// let core = Core::new()?;
     /// let handle = core.handle();
     /// let builder = WorkerBuilder::new(())
     ///     .handle(handle);
+    /// #     Ok(())
     /// # }
     /// ```
     pub fn handle(mut self, handle: Handle) -> Self {
@@ -275,23 +282,29 @@ impl<Ctx> Worker<Ctx> {
     ///
     /// ```rust
     /// extern crate batch;
+    /// # extern crate failure;
     /// extern crate tokio_core;
     ///
     /// use batch::WorkerBuilder;
+    /// # use failure::Error;
     /// use tokio_core::reactor::Core;
     ///
     /// fn main() {
-    ///     let mut core = Core::new().unwrap();
+    /// #   example().unwrap();
+    /// # }
+    /// #
+    /// # fn example() -> Result<(), Error> {
+    ///     let mut core = Core::new()?;
     ///     let handle = core.handle();
     ///     let worker = WorkerBuilder::new(())
     ///         .handle(handle)
-    ///         .build()
-    ///         .unwrap();
+    ///         .build()?;
     ///     let task = worker.run();
     ///
     /// # if false {
-    ///     core.run(task).unwrap();
+    ///     core.run(task)?;
     /// # }
+    /// # Ok(())
     /// }
     /// ```
     pub fn run(self) -> Box<Future<Item = (), Error = error::Error>> {
