@@ -4,7 +4,7 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::time::Duration;
 
-use futures::Future;
+use futures::{Future, IntoFuture};
 use lapin::channel::{BasicProperties, BasicPublishOptions};
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ use ser;
 /// A `Query` is responsible for publishing jobs to `RabbitMQ`.
 pub struct Query<T>
 where
-    T: Task,
+    T: Task + 'static,
 {
     task: T,
     exchange: String,
@@ -30,7 +30,7 @@ where
 
 impl<T> fmt::Debug for Query<T>
 where
-    T: Task + fmt::Debug,
+    T: Task + fmt::Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(
@@ -49,7 +49,7 @@ where
 
 impl<T> Query<T>
 where
-    T: Task,
+    T: Task + 'static,
 {
     /// Create a new `Query` from a `Task` instance.
     pub fn new(task: T) -> Self {
@@ -123,25 +123,30 @@ where
 
     /// Send the job using the given client.
     pub fn send(self, client: &Client) -> Box<Future<Item = (), Error = Error>> {
-        let serialized = ser::to_vec(&self.task)
+        let client = client.clone();
+        let task = ser::to_vec(&self.task)
             .map_err(error::ErrorKind::Serialization)
-            .unwrap();
-        let job = Job::new(
-            T::name(),
-            &self.exchange,
-            &self.routing_key,
-            &serialized,
-            self.timeout,
-            self.retries,
-        );
-        client.send(&job, &self.options, self.properties)
+            .into_future()
+            .map_err(|e| e.into())
+            .and_then(move |serialized| {
+                let job = Job::new(
+                    T::name(),
+                    &self.exchange,
+                    &self.routing_key,
+                    &serialized,
+                    self.timeout,
+                    self.retries,
+                );
+                client.send(&job, &self.options, self.properties)
+            });
+        Box::new(task)
     }
 }
 
 /// Shorthand to create a new `Query` instance from a `Task`.
 pub fn job<T>(task: T) -> Query<T>
 where
-    T: Task,
+    T: Task + 'static,
 {
     Query::new(task)
 }

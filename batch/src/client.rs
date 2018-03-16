@@ -122,7 +122,7 @@ impl ClientBuilder {
 }
 
 /// The `Client` is responsible for sending tasks to the broker.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Client {
     broker: RabbitmqBroker,
 }
