@@ -219,7 +219,8 @@ impl<Ctx> WorkerBuilder<Ctx> {
         self.handlers.insert(
             T::name(),
             Box::new(|job, ctx| -> Result<()> {
-                let task: T = de::from_slice(job.task()).unwrap();
+                let task: T =
+                    de::from_slice(job.task()).map_err(error::ErrorKind::Deserialization)?;
                 Perform::perform(&task, ctx);
                 Ok(())
             }),
