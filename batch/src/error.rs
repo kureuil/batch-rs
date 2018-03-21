@@ -38,8 +38,8 @@ pub enum ErrorKind {
     NoHandle,
 
     /// The given URL's scheme is not handled.
-    #[fail(display = "This URL scheme is invalid: {}", _0)]
-    InvalidScheme(::std::string::String),
+    #[fail(display = "The given connection URL is invalid: {}", _0)]
+    InvalidUrl(::std::string::String),
 
     /// The given priority is invalid, must be one of: trivial, low, normal, high, critical.
     #[fail(display = "Invalid priority, must be one of: trivial, low, normal, high, critical.")]
@@ -100,6 +100,14 @@ impl Error {
     pub fn is_no_handle(&self) -> bool {
         match *self.kind() {
             ErrorKind::NoHandle => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the error is from an invalid scheme in the connection URL.
+    pub fn is_invalid_url(&self) -> bool {
+        match *self.kind() {
+            ErrorKind::InvalidUrl(_) => true,
             _ => false,
         }
     }

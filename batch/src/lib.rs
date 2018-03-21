@@ -64,13 +64,13 @@
 #![allow(unused_imports)]
 #![allow(unknown_lints)]
 
+extern crate amq_protocol;
+extern crate bytes;
 #[macro_use]
 extern crate failure;
 extern crate futures;
 extern crate lapin_async;
 extern crate lapin_futures as lapin;
-extern crate lapin_futures_rustls as lapin_rustls;
-extern crate lapin_futures_tls_api as lapin_tls_api;
 #[macro_use]
 extern crate log;
 extern crate serde;
@@ -78,6 +78,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate uuid;
 extern crate wait_timeout;
 
