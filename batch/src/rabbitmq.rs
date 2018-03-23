@@ -10,7 +10,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::thread;
 
-use amq_protocol::uri::AMQPUri;
+use amq_protocol::uri::{AMQPScheme, AMQPUri};
 use bytes::{Buf, BufMut};
 use futures::{self, future, Async, Future, IntoFuture, Poll};
 use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel,
@@ -19,9 +19,11 @@ use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, 
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::{AMQPValue, FieldTable};
 use lapin_async::queue::Message;
+use native_tls::TlsConnector;
 use tokio_core::reactor::{Core, Handle};
 use tokio_core::net::TcpStream;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_tls::TlsConnectorExt;
 
 use de;
 use error::{Error, ErrorKind, Result};
@@ -126,12 +128,14 @@ impl fmt::Debug for RabbitmqBroker {
 
 enum Stream {
     Raw(::tokio_core::net::TcpStream),
+    Tls(::tokio_tls::TlsStream<::tokio_core::net::TcpStream>),
 }
 
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             Stream::Raw(ref mut raw) => raw.read(buf),
+            Stream::Tls(ref mut raw) => raw.read(buf),
         }
     }
 }
@@ -140,12 +144,14 @@ impl AsyncRead for Stream {
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         match *self {
             Stream::Raw(ref raw) => raw.prepare_uninitialized_buffer(buf),
+            Stream::Tls(ref raw) => raw.prepare_uninitialized_buffer(buf),
         }
     }
 
     fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         match *self {
             Stream::Raw(ref mut raw) => raw.read_buf(buf),
+            Stream::Tls(ref mut raw) => raw.read_buf(buf),
         }
     }
 }
@@ -154,12 +160,14 @@ impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             Stream::Raw(ref mut raw) => raw.write(buf),
+            Stream::Tls(ref mut raw) => raw.write(buf),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             Stream::Raw(ref mut raw) => raw.flush(),
+            Stream::Tls(ref mut raw) => raw.flush(),
         }
     }
 }
@@ -168,12 +176,14 @@ impl AsyncWrite for Stream {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match *self {
             Stream::Raw(ref mut raw) => raw.shutdown(),
+            Stream::Tls(ref mut raw) => raw.shutdown(),
         }
     }
 
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         match *self {
             Stream::Raw(ref mut raw) => raw.write_buf(buf),
+            Stream::Tls(ref mut raw) => raw.write_buf(buf),
         }
     }
 }
@@ -195,11 +205,34 @@ fn connect(
                 .join(future::ok(uri))
         })
         .and_then(move |(stream, uri)| {
-            TcpStream::from_stream(stream, &handle)
-                .map(|stream| Stream::Raw(stream))
-                .map_err(|e| ErrorKind::Io(e).into())
-                .into_future()
-                .join(future::ok(uri))
+            let task: Box<Future<Item = Stream, Error = Error>> = if uri.scheme == AMQPScheme::AMQP
+            {
+                let task = TcpStream::from_stream(stream, &handle)
+                    .map(|stream| Stream::Raw(stream))
+                    .map_err(|e| ErrorKind::Io(e).into())
+                    .into_future();
+                Box::new(task)
+            } else {
+                let host = uri.authority.host.clone();
+                let task = TlsConnector::builder()
+                    .map_err(|e| ErrorKind::Tls(e).into())
+                    .into_future()
+                    .and_then(|builder| builder.build().map_err(|e| ErrorKind::Tls(e).into()))
+                    .and_then(move |connector| {
+                        TcpStream::from_stream(stream, &handle)
+                            .map_err(|e| ErrorKind::Io(e).into())
+                            .into_future()
+                            .join(future::ok(connector))
+                    })
+                    .and_then(move |(stream, connector)| {
+                        connector
+                            .connect_async(&host, stream)
+                            .map(|stream| Stream::Tls(stream))
+                            .map_err(|e| ErrorKind::Tls(e).into())
+                    });
+                Box::new(task)
+            };
+            task.join(future::ok(uri))
         })
         .and_then(move |(stream, uri)| {
             let opts = ConnectionOptions {

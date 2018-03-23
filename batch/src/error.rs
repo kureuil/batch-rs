@@ -48,6 +48,10 @@ pub enum ErrorKind {
     /// An error occured in the RabbitMQ broker.
     #[fail(display = "An error occured in the RabbitMQ broker: {}", _0)]
     Rabbitmq(#[cause] ::std::io::Error),
+
+    /// An error occured while setting up TLS.
+    #[fail(display = "An error occured while setting up TLS: {}", _0)]
+    Tls(#[cause] ::native_tls::Error),
 }
 
 impl Error {
@@ -124,6 +128,14 @@ impl Error {
     pub fn is_rabbitmq(&self) -> bool {
         match *self.kind() {
             ErrorKind::Rabbitmq(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the error is from the TLS stack.
+    pub fn is_tls(&self) -> bool {
+        match *self.kind() {
+            ErrorKind::Tls(_) => true,
             _ => false,
         }
     }

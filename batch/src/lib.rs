@@ -73,12 +73,14 @@ extern crate lapin_async;
 extern crate lapin_futures as lapin;
 #[macro_use]
 extern crate log;
+extern crate native_tls;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate tokio_tls;
 extern crate uuid;
 extern crate wait_timeout;
 
