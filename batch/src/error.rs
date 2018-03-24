@@ -38,8 +38,8 @@ pub enum ErrorKind {
     NoHandle,
 
     /// The given URL's scheme is not handled.
-    #[fail(display = "This URL scheme is invalid: {}", _0)]
-    InvalidScheme(::std::string::String),
+    #[fail(display = "The given connection URL is invalid: {}", _0)]
+    InvalidUrl(::std::string::String),
 
     /// The given priority is invalid, must be one of: trivial, low, normal, high, critical.
     #[fail(display = "Invalid priority, must be one of: trivial, low, normal, high, critical.")]
@@ -48,6 +48,10 @@ pub enum ErrorKind {
     /// An error occured in the RabbitMQ broker.
     #[fail(display = "An error occured in the RabbitMQ broker: {}", _0)]
     Rabbitmq(#[cause] ::std::io::Error),
+
+    /// An error occured while setting up TLS.
+    #[fail(display = "An error occured while setting up TLS: {}", _0)]
+    Tls(#[cause] ::native_tls::Error),
 }
 
 impl Error {
@@ -104,6 +108,14 @@ impl Error {
         }
     }
 
+    /// Returns true if the error is from an invalid scheme in the connection URL.
+    pub fn is_invalid_url(&self) -> bool {
+        match *self.kind() {
+            ErrorKind::InvalidUrl(_) => true,
+            _ => false,
+        }
+    }
+
     /// Returns true if the error is from an invalid priority.
     pub fn is_invalid_priority(&self) -> bool {
         match *self.kind() {
@@ -116,6 +128,14 @@ impl Error {
     pub fn is_rabbitmq(&self) -> bool {
         match *self.kind() {
             ErrorKind::Rabbitmq(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the error is from the TLS stack.
+    pub fn is_tls(&self) -> bool {
+        match *self.kind() {
+            ErrorKind::Tls(_) => true,
             _ => false,
         }
     }

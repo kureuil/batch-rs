@@ -3,33 +3,37 @@
 use std::collections::BTreeSet;
 use std::cmp;
 use std::fmt;
-use std::io;
+use std::io::{self, Read, Write};
 use std::iter::FromIterator;
 use std::net::{self, ToSocketAddrs};
 use std::result::Result as StdResult;
+use std::str::FromStr;
 use std::thread;
 
-use futures::{future, Async, Future, IntoFuture, Poll, Stream};
+use amq_protocol::uri::{AMQPScheme, AMQPUri};
+use bytes::{Buf, BufMut};
+use futures::{self, future, Async, Future, IntoFuture, Poll};
 use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel,
                      ExchangeBindOptions, ExchangeDeclareOptions, QueueBindOptions,
                      QueueDeclareOptions};
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::{AMQPValue, FieldTable};
 use lapin_async::queue::Message;
-use lapin_rustls::AMQPConnectionRustlsExt;
-use lapin_tls_api::AMQPStream;
+use native_tls::TlsConnector;
 use tokio_core::reactor::{Core, Handle};
 use tokio_core::net::TcpStream;
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_tls::TlsConnectorExt;
 
 use de;
-use error::{Error, ErrorKind};
+use error::{Error, ErrorKind, Result};
 use job::Job;
 use ser;
 
 /// Declare the given queues to the given `Channel`.
 fn declare_queues<Q>(
     queues: Q,
-    channel: Channel<AMQPStream>,
+    channel: Channel<Stream>,
 ) -> Box<Future<Item = (), Error = io::Error>>
 where
     Q: IntoIterator<Item = Queue> + 'static,
@@ -65,7 +69,7 @@ where
 /// Declare the given exchanges to the given `Channel`.
 fn declare_exchanges<E>(
     exchanges: E,
-    channel: Channel<AMQPStream>,
+    channel: Channel<Stream>,
 ) -> Box<Future<Item = (), Error = io::Error>>
 where
     E: IntoIterator<Item = Exchange> + 'static,
@@ -108,8 +112,8 @@ where
 pub struct RabbitmqBroker {
     exchanges: Vec<Exchange>,
     queues: Vec<Queue>,
-    publish_channel: Channel<AMQPStream>,
-    client: Client<AMQPStream>,
+    publish_channel: Channel<Stream>,
+    client: Client<Stream>,
 }
 
 impl fmt::Debug for RabbitmqBroker {
@@ -120,6 +124,136 @@ impl fmt::Debug for RabbitmqBroker {
             self.exchanges, self.queues
         )
     }
+}
+
+enum Stream {
+    Raw(::tokio_core::net::TcpStream),
+    Tls(::tokio_tls::TlsStream<::tokio_core::net::TcpStream>),
+}
+
+impl Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.read(buf),
+            Stream::Tls(ref mut raw) => raw.read(buf),
+        }
+    }
+}
+
+impl AsyncRead for Stream {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        match *self {
+            Stream::Raw(ref raw) => raw.prepare_uninitialized_buffer(buf),
+            Stream::Tls(ref raw) => raw.prepare_uninitialized_buffer(buf),
+        }
+    }
+
+    fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.read_buf(buf),
+            Stream::Tls(ref mut raw) => raw.read_buf(buf),
+        }
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.write(buf),
+            Stream::Tls(ref mut raw) => raw.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.flush(),
+            Stream::Tls(ref mut raw) => raw.flush(),
+        }
+    }
+}
+
+impl AsyncWrite for Stream {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.shutdown(),
+            Stream::Tls(ref mut raw) => raw.shutdown(),
+        }
+    }
+
+    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        match *self {
+            Stream::Raw(ref mut raw) => raw.write_buf(buf),
+            Stream::Tls(ref mut raw) => raw.write_buf(buf),
+        }
+    }
+}
+
+fn connect(
+    connection_url: &str,
+    handle: Handle,
+) -> Box<Future<Item = Client<Stream>, Error = Error>> {
+    let heartbeat_handle = handle.clone();
+    let task = AMQPUri::from_str(connection_url)
+        .map_err(|e| ErrorKind::InvalidUrl(e).into())
+        .into_future()
+        .and_then(|uri| {
+            let addr_uri = uri.clone();
+            let addr = (addr_uri.authority.host.as_ref(), addr_uri.authority.port);
+            net::TcpStream::connect(addr)
+                .map_err(|e| ErrorKind::Io(e).into())
+                .into_future()
+                .join(future::ok(uri))
+        })
+        .and_then(move |(stream, uri)| {
+            let task: Box<Future<Item = Stream, Error = Error>> = if uri.scheme == AMQPScheme::AMQP
+            {
+                let task = TcpStream::from_stream(stream, &handle)
+                    .map(|stream| Stream::Raw(stream))
+                    .map_err(|e| ErrorKind::Io(e).into())
+                    .into_future();
+                Box::new(task)
+            } else {
+                let host = uri.authority.host.clone();
+                let task = TlsConnector::builder()
+                    .map_err(|e| ErrorKind::Tls(e).into())
+                    .into_future()
+                    .and_then(|builder| builder.build().map_err(|e| ErrorKind::Tls(e).into()))
+                    .and_then(move |connector| {
+                        TcpStream::from_stream(stream, &handle)
+                            .map_err(|e| ErrorKind::Io(e).into())
+                            .into_future()
+                            .join(future::ok(connector))
+                    })
+                    .and_then(move |(stream, connector)| {
+                        connector
+                            .connect_async(&host, stream)
+                            .map(|stream| Stream::Tls(stream))
+                            .map_err(|e| ErrorKind::Tls(e).into())
+                    });
+                Box::new(task)
+            };
+            task.join(future::ok(uri))
+        })
+        .and_then(move |(stream, uri)| {
+            let opts = ConnectionOptions {
+                username: uri.authority.userinfo.username,
+                password: uri.authority.userinfo.password,
+                vhost: uri.vhost,
+                frame_max: uri.query.frame_max.unwrap_or(0),
+                heartbeat: uri.query.heartbeat.unwrap_or(0),
+            };
+            Client::connect(stream, &opts)
+                .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                .map(move |(client, heartbeat_fn)| {
+                    let heartbeat_client = client.clone();
+                    heartbeat_handle.spawn(
+                        heartbeat_fn(&heartbeat_client)
+                            .map_err(|e| eprintln!("RabbitMQ heartbeat error: {}", e)),
+                    );
+                    client
+                })
+        });
+    Box::new(task)
 }
 
 impl RabbitmqBroker {
@@ -140,21 +274,24 @@ impl RabbitmqBroker {
         let queues = queues_iter.into_iter().collect::<Vec<_>>();
         let queues_ = queues.clone();
 
-        let task = connection_url
-            .connect(handle, |err| {
-                error!(
-                    "An error occured in the RabbitMQ heartbeat handler: {}",
-                    err
-                )
-            })
-            .and_then(|client| client.create_channel().join(future::ok(client)))
-            .and_then(move |(channel, client)| {
-                let channel_ = channel.clone();
-                declare_exchanges(exchanges_, channel).map(|_| (channel_, client))
+        let task = connect(connection_url, handle)
+            .and_then(|client| {
+                client
+                    .create_channel()
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .join(future::ok(client))
             })
             .and_then(move |(channel, client)| {
                 let channel_ = channel.clone();
-                declare_queues(queues_, channel).map(|_| (channel_, client))
+                declare_exchanges(exchanges_, channel)
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .map(|_| (channel_, client))
+            })
+            .and_then(move |(channel, client)| {
+                let channel_ = channel.clone();
+                declare_queues(queues_, channel)
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .map(|_| (channel_, client))
             })
             .and_then(move |(publish_channel, client)| {
                 future::ok(RabbitmqBroker {
@@ -163,8 +300,7 @@ impl RabbitmqBroker {
                     queues,
                     exchanges,
                 })
-            })
-            .map_err(|e| ErrorKind::Rabbitmq(e).into());
+            });
         Box::new(task)
     }
 
@@ -172,7 +308,7 @@ impl RabbitmqBroker {
     ///
     /// This method consumes the current connection in order to avoid mixing publishing
     /// and consuming jobs on the same connection (which more often than not leads to issues).
-    pub fn recv(self) -> Box<Future<Item = RabbitmqStream, Error = Error>> {
+    pub fn recv(self) -> Box<Future<Item = RabbitmqConsumer, Error = Error>> {
         let consumer_exchanges = self.exchanges.clone();
         let consumer_queues = self.queues.clone();
         let queues = self.queues.clone();
@@ -198,12 +334,13 @@ impl RabbitmqBroker {
                 })).join(future::ok(channel))
             })
             .and_then(|(mut consumers, channel)| {
-                let initial: Box<Stream<Item = Message, Error = io::Error> + Send> =
-                    Box::new(consumers.pop().unwrap());
-                let consumer = consumers
-                    .into_iter()
-                    .fold(initial, |acc, consumer| Box::new(acc.select(consumer)));
-                future::ok(RabbitmqStream {
+                let initial: Box<
+                    futures::Stream<Item = Message, Error = io::Error> + Send,
+                > = Box::new(consumers.pop().unwrap());
+                let consumer = consumers.into_iter().fold(initial, |acc, consumer| {
+                    Box::new(futures::Stream::select(acc, consumer))
+                });
+                future::ok(RabbitmqConsumer {
                     channel,
                     stream: consumer,
                 })
@@ -244,18 +381,18 @@ impl RabbitmqBroker {
 ///
 /// The type of the stream is a tuple containing a `u64` which is a unique ID for the
 /// job used when `ack`'ing or `reject`'ing it, and a `Job` instance.
-pub struct RabbitmqStream {
-    channel: Channel<AMQPStream>,
-    stream: Box<Stream<Item = Message, Error = io::Error> + Send>,
+pub struct RabbitmqConsumer {
+    channel: Channel<Stream>,
+    stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
 }
 
-impl fmt::Debug for RabbitmqStream {
+impl fmt::Debug for RabbitmqConsumer {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(f, "RabbitmqStream {{ }}")
     }
 }
 
-impl RabbitmqStream {
+impl RabbitmqConsumer {
     /// Acknowledge the successful execution of a `Task`.
     ///
     /// Returns a `Future` that completes once the `ack` is sent to the broker.
@@ -277,7 +414,7 @@ impl RabbitmqStream {
     }
 }
 
-impl Stream for RabbitmqStream {
+impl futures::Stream for RabbitmqConsumer {
     type Item = (u64, Job);
     type Error = Error;
 
@@ -731,6 +868,7 @@ mod tests {
 
     #[test]
     fn priority_queue() {
+        use futures::Stream;
         let mut core = Core::new().unwrap();
         let ex = "batch.tests.priorities";
         let rk = "prioritised-hello";

@@ -14,17 +14,20 @@ categories = ["asynchronous"]
 travis-ci = { repository = "kureuil/batch-rs" }
 
 [dependencies]
+amq-protocol = "0.19"
+bytes = "0.4"
 failure = "0.1.1"
 futures = "0.1.17"
 lapin-async = "0.10"
 lapin-futures = "0.10"
-lapin-futures-rustls = "0.10"
-lapin-futures-tls-api = "0.6"
 log = "0.4"
+native-tls = "0.1"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 tokio-core = "0.1"
+tokio-io = "0.1"
+tokio-tls = "0.1"
 uuid = { version = "0.6", features = ["v4", "serde"] }
 wait-timeout = "0.1.5"
 

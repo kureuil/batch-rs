@@ -30,7 +30,7 @@ use error::{self, Result};
 use de;
 use ser;
 use job::{Failure as JobFailure, Job, Status as JobStatus};
-use rabbitmq::{Exchange, ExchangeBuilder, Queue, QueueBuilder, RabbitmqBroker, RabbitmqStream};
+use rabbitmq::{Exchange, ExchangeBuilder, Queue, QueueBuilder, RabbitmqBroker, RabbitmqConsumer};
 use task::{Perform, Task};
 
 /// Type of task handlers stored in `Worker`.
@@ -388,7 +388,7 @@ impl<Ctx> Worker<Ctx> {
 }
 
 fn reject(
-    consumer: &RabbitmqStream,
+    consumer: &RabbitmqConsumer,
     broker: Arc<RabbitmqBroker>,
     uid: u64,
     job: Job,
