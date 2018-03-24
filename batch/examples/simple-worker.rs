@@ -10,6 +10,7 @@ use batch::{exchange, queue, Perform, WorkerBuilder};
 use tokio_core::reactor::Core;
 
 #[derive(Serialize, Deserialize, Task)]
+#[task_name = "batch::SayHello"]
 #[task_routing_key = "hello-world"]
 struct SayHello {
     to: String,
