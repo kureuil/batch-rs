@@ -56,7 +56,7 @@ pub fn task_derive(input: TokenStream) -> TokenStream {
         impl ::batch::Task for #name {
 
             fn name() -> &'static str {
-                concat!(concat!(module_path!(), "::"), #task_name)
+                #task_name
             }
 
             fn exchange() -> &'static str {
@@ -84,11 +84,14 @@ pub fn task_derive(input: TokenStream) -> TokenStream {
 }
 
 fn get_derive_name_attr(input: &DeriveInput) -> Tokens {
-    let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_name");
-        raw.unwrap_or_else(|| input.ident.as_ref().to_string())
-    };
-    attr.into_tokens()
+    if let Some(raw) = get_str_attr_by_name(&input.attrs, "task_name") {
+        raw.into_tokens()
+    } else {
+        let name = input.ident.as_ref();
+        quote! {
+            concat!(concat!(module_path!(), "::"), #name)
+        }
+    }
 }
 
 fn get_derive_exchange_attr(input: &DeriveInput) -> Tokens {
