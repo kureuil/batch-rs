@@ -9,15 +9,17 @@ use std::net::{self, ToSocketAddrs};
 use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::thread;
+use std::time::Duration;
 
 use amq_protocol::uri::{AMQPScheme, AMQPUri};
 use bytes::{Buf, BufMut};
 use futures::{self, future, Async, Future, IntoFuture, Poll};
+use lapin_async::generated::basic::Properties;
 use lapin::channel::{BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel,
                      ExchangeBindOptions, ExchangeDeclareOptions, QueueBindOptions,
                      QueueDeclareOptions};
 use lapin::client::{Client, ConnectionOptions};
-use lapin::types::{AMQPValue, FieldTable};
+use lapin::types::{self, AMQPValue, FieldTable};
 use lapin_async::queue::Message;
 use native_tls::TlsConnector;
 use tokio_core::reactor::{Core, Handle};
@@ -27,7 +29,6 @@ use tokio_tls::TlsConnectorExt;
 
 use de;
 use error::{Error, ErrorKind, Result};
-use job::Job;
 use ser;
 
 /// Declare the given queues to the given `Channel`.
@@ -107,22 +108,16 @@ where
     Box::new(task.map(|_| ()))
 }
 
-/// An AMQP based broker for the Batch distributed task queue.
+/// An AMQP based publisher for the Batch distributed task queue.
 #[derive(Clone)]
-pub struct RabbitmqBroker {
-    exchanges: Vec<Exchange>,
-    queues: Vec<Queue>,
-    publish_channel: Channel<Stream>,
+pub struct Publisher {
+    channel: Channel<Stream>,
     client: Client<Stream>,
 }
 
-impl fmt::Debug for RabbitmqBroker {
+impl fmt::Debug for Publisher {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
-        write!(
-            f,
-            "RabbitmqBroker {{ exchanges: {:?} queues: {:?} }}",
-            self.exchanges, self.queues
-        )
+        write!(f, "Publisher {{ }}")
     }
 }
 
@@ -256,8 +251,203 @@ fn connect(
     Box::new(task)
 }
 
-impl RabbitmqBroker {
-    /// Create a `RabbitmqBroker` instance from a RabbitMQ URI and an explicit tokio handle.
+impl Publisher {
+    /// Create a `Publisher` instance from a RabbitMQ URI and an explicit tokio handle.
+    pub fn new_with_handle<E>(
+        connection_url: &str,
+        exchanges_iter: E,
+        handle: Handle,
+    ) -> Box<Future<Item = Self, Error = Error>>
+    where
+        E: IntoIterator<Item = Exchange>,
+    {
+        let exchanges = exchanges_iter.into_iter().collect::<Vec<_>>();
+
+        let task = connect(connection_url, handle)
+            .and_then(|client| {
+                client
+                    .create_channel()
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .join(future::ok(client))
+            })
+            .and_then(move |(channel, client)| {
+                let channel_ = channel.clone();
+                declare_exchanges(exchanges, channel_)
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .map(|_| (channel, client))
+            })
+            .map(move |(channel, client)| {
+                Publisher {
+                    client,
+                    channel,
+                }
+            });
+        Box::new(task)
+    }
+
+    /// Send a job to the broker.
+    ///
+    /// Returns a `Future` that completes once the job is sent to the broker.
+    pub fn send(
+        &self,
+        exchange: &str,
+        routing_key: &str,
+        serialized: &[u8],
+        options: &BasicPublishOptions,
+        properties: BasicProperties,
+    ) -> Box<Future<Item = (), Error = Error>> {
+        let task = self.channel
+            .basic_publish(exchange, routing_key, serialized, options, properties)
+            .and_then(move |_| future::ok(()))
+            .map_err(|e| ErrorKind::Rabbitmq(e).into());
+        Box::new(task)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Properties")]
+pub struct PropertiesDef {
+    pub content_type: Option<types::ShortString>,
+    pub content_encoding: Option<types::ShortString>,
+    pub headers: Option<types::FieldTable>,
+    pub delivery_mode: Option<types::ShortShortUInt>,
+    pub priority: Option<types::ShortShortUInt>,
+    pub correlation_id: Option<types::ShortString>,
+    pub reply_to: Option<types::ShortString>,
+    pub expiration: Option<types::ShortString>,
+    pub message_id: Option<types::ShortString>,
+    pub timestamp: Option<types::Timestamp>,
+    pub type_: Option<types::ShortString>,
+    pub user_id: Option<types::ShortString>,
+    pub app_id: Option<types::ShortString>,
+    pub cluster_id: Option<types::ShortString>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Message")]
+pub struct MessageDef {
+    pub delivery_tag: types::LongLongUInt,
+    pub exchange: String,
+    pub routing_key: String,
+    pub redelivered: bool,
+    #[serde(with = "PropertiesDef")]
+    pub properties: Properties,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Delivery(#[serde(with = "MessageDef")] pub Message);
+
+impl Delivery {
+    pub fn tag(&self) -> u64 {
+        self.0.delivery_tag
+    }
+
+    pub fn task(&self) -> &str {
+        self.0
+            .properties
+            .headers
+            .as_ref()
+            .map(|hdrs| match hdrs.get("task") {
+                Some(&AMQPValue::LongString(ref task)) => task.as_ref(),
+                _ => "",
+            })
+            .unwrap_or("")
+    }
+
+    pub fn task_id(&self) -> &str {
+        self.0
+            .properties
+            .correlation_id
+            .as_ref()
+            .map_or("", String::as_ref)
+    }
+
+    pub fn exchange(&self) -> &str {
+        &self.0.exchange
+    }
+
+    pub fn routing_key(&self) -> &str {
+        &self.0.routing_key
+    }
+
+    pub fn data(&self) -> &[u8] {
+        &self.0.data
+    }
+
+    pub fn properties(&self) -> &Properties {
+        &self.0.properties
+    }
+
+    pub fn timeout(&self) -> (Option<Duration>, Option<Duration>) {
+        self.0
+            .properties
+            .headers
+            .as_ref()
+            .map(|hdrs| match hdrs.get("timelimit") {
+                Some(&AMQPValue::FieldArray(ref vec)) if vec.len() == 2 => {
+                    let soft_limit = match vec[0] {
+                        AMQPValue::Timestamp(s) => Some(Duration::from_secs(s)),
+                        _ => None,
+                    };
+                    let hard_limit = match vec[1] {
+                        AMQPValue::Timestamp(s) => Some(Duration::from_secs(s)),
+                        _ => None,
+                    };
+                    (soft_limit, hard_limit)
+                }
+                _ => (None, None),
+            })
+            .unwrap_or((None, None))
+    }
+
+    pub fn retries(&self) -> u32 {
+        self.0
+            .properties
+            .headers
+            .as_ref()
+            .map(|hdrs| match hdrs.get("retries") {
+                Some(&AMQPValue::LongUInt(retries)) => retries,
+                _ => 0,
+            })
+            .unwrap_or(0)
+    }
+
+    pub fn incr_retries(&mut self) -> u32 {
+        let incrd_retries = self.retries() + 1;
+        let mut headers = self.0
+            .properties
+            .headers
+            .take()
+            .unwrap_or_else(|| FieldTable::new());
+        headers.insert("retries".to_string(), AMQPValue::LongUInt(incrd_retries));
+        self.0.properties.headers = Some(headers);
+        incrd_retries
+    }
+
+    pub fn should_retry(&mut self, max_retries: u32) -> bool {
+        self.incr_retries() < max_retries
+    }
+}
+
+/// A `Consumer` of incoming jobs.
+///
+/// The type of the stream is a tuple containing a `u64` which is a unique ID for the
+/// job used when `ack`'ing or `reject`'ing it, and a `Job` instance.
+pub struct Consumer {
+    client: Client<Stream>,
+    channel: Channel<Stream>,
+    stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
+}
+
+impl fmt::Debug for Consumer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
+        write!(f, "Consumer {{ }}")
+    }
+}
+
+impl Consumer {
+    /// Create a `Consumer` instance from a RabbitMQ URI and an explicit tokio handle.
     pub fn new_with_handle<E, Q>(
         connection_url: &str,
         exchanges_iter: E,
@@ -269,8 +459,6 @@ impl RabbitmqBroker {
         Q: IntoIterator<Item = Queue>,
     {
         let exchanges = exchanges_iter.into_iter().collect::<Vec<_>>();
-        let exchanges_ = exchanges.clone();
-
         let queues = queues_iter.into_iter().collect::<Vec<_>>();
         let queues_ = queues.clone();
 
@@ -283,46 +471,17 @@ impl RabbitmqBroker {
             })
             .and_then(move |(channel, client)| {
                 let channel_ = channel.clone();
-                declare_exchanges(exchanges_, channel)
+                declare_exchanges(exchanges, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel_, client))
+                    .map(|_| (channel, client))
             })
             .and_then(move |(channel, client)| {
                 let channel_ = channel.clone();
-                declare_queues(queues_, channel)
+                declare_queues(queues_, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel_, client))
+                    .map(|_| (channel, client))
             })
-            .and_then(move |(publish_channel, client)| {
-                future::ok(RabbitmqBroker {
-                    client,
-                    publish_channel,
-                    queues,
-                    exchanges,
-                })
-            });
-        Box::new(task)
-    }
-
-    /// Return a `Future` of a `Stream` of incoming jobs (see `Self::Stream`).
-    ///
-    /// This method consumes the current connection in order to avoid mixing publishing
-    /// and consuming jobs on the same connection (which more often than not leads to issues).
-    pub fn recv(self) -> Box<Future<Item = RabbitmqConsumer, Error = Error>> {
-        let consumer_exchanges = self.exchanges.clone();
-        let consumer_queues = self.queues.clone();
-        let queues = self.queues.clone();
-        let task = self.client
-            .create_channel()
-            .and_then(|channel| {
-                let channel_ = channel.clone();
-                declare_exchanges(consumer_exchanges, channel).map(|_| channel_)
-            })
-            .and_then(|channel| {
-                let channel_ = channel.clone();
-                declare_queues(consumer_queues, channel).map(|_| channel_)
-            })
-            .and_then(|channel| {
+            .and_then(|(channel, client)| {
                 let consumer_channel = channel.clone();
                 future::join_all(queues.into_iter().map(move |queue| {
                     consumer_channel.basic_consume(
@@ -330,69 +489,25 @@ impl RabbitmqBroker {
                         &format!("batch-rs-consumer-{}", queue.name),
                         &BasicConsumeOptions::default(),
                         &FieldTable::new(),
-                    )
-                })).join(future::ok(channel))
+                    ).map_err(|e| ErrorKind::Rabbitmq(e).into())
+                })).join(future::ok((channel, client)))
             })
-            .and_then(|(mut consumers, channel)| {
+            .map(move |(mut consumers, (channel, client))| {
                 let initial: Box<
                     futures::Stream<Item = Message, Error = io::Error> + Send,
                 > = Box::new(consumers.pop().unwrap());
-                let consumer = consumers.into_iter().fold(initial, |acc, consumer| {
+                let stream = consumers.into_iter().fold(initial, |acc, consumer| {
                     Box::new(futures::Stream::select(acc, consumer))
                 });
-                future::ok(RabbitmqConsumer {
+                Consumer {
+                    client,
                     channel,
-                    stream: consumer,
-                })
-            })
-            .map_err(|e| ErrorKind::Rabbitmq(e).into());
+                    stream,
+                }
+            });
         Box::new(task)
     }
 
-    /// Send a job to the broker.
-    ///
-    /// Returns a `Future` that completes once the job is sent to the broker.
-    pub fn send(
-        &self,
-        job: &Job,
-        options: &BasicPublishOptions,
-        properties: BasicProperties,
-    ) -> Box<Future<Item = (), Error = Error>> {
-        let channel = self.publish_channel.clone();
-        let serialized = match ser::to_vec(&job) {
-            Ok(serialized) => serialized,
-            Err(e) => return Box::new(future::err(ErrorKind::Serialization(e).into())),
-        };
-        let task = channel
-            .basic_publish(
-                job.exchange(),
-                job.routing_key(),
-                &serialized,
-                options,
-                properties,
-            )
-            .and_then(move |_| future::ok(()))
-            .map_err(|e| ErrorKind::Rabbitmq(e).into());
-        Box::new(task)
-    }
-}
-
-/// A `Consumer` of incoming jobs.
-///
-/// The type of the stream is a tuple containing a `u64` which is a unique ID for the
-/// job used when `ack`'ing or `reject`'ing it, and a `Job` instance.
-pub struct RabbitmqConsumer {
-    channel: Channel<Stream>,
-    stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
-}
-
-impl fmt::Debug for RabbitmqConsumer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
-        write!(f, "RabbitmqStream {{ }}")
-    }
-}
-
-impl RabbitmqConsumer {
     /// Acknowledge the successful execution of a `Task`.
     ///
     /// Returns a `Future` that completes once the `ack` is sent to the broker.
@@ -414,8 +529,8 @@ impl RabbitmqConsumer {
     }
 }
 
-impl futures::Stream for RabbitmqConsumer {
-    type Item = (u64, Job);
+impl futures::Stream for Consumer {
+    type Item = Delivery;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -431,8 +546,7 @@ impl futures::Stream for RabbitmqConsumer {
             Some(message) => message,
             None => return Ok(Async::Ready(None)),
         };
-        let job: Job = de::from_slice(&message.data).map_err(ErrorKind::Deserialization)?;
-        Ok(Async::Ready(Some((message.delivery_tag, job))))
+        Ok(Async::Ready(Some(Delivery(message))))
     }
 }
 
@@ -868,18 +982,21 @@ mod tests {
 
     #[test]
     fn priority_queue() {
+        use std::collections::VecDeque;
         use futures::Stream;
+
+        ::env_logger::init();
         let mut core = Core::new().unwrap();
         let ex = "batch.tests.priorities";
         let rk = "prioritised-hello";
         let jobs = vec![
-            (Job::new("job-1", ex, rk, &[], None, 0), Priority::Normal),
-            (Job::new("job-2", ex, rk, &[], None, 0), Priority::Critical),
-            (Job::new("job-3", ex, rk, &[], None, 0), Priority::Trivial),
-            (Job::new("job-4", ex, rk, &[], None, 0), Priority::High),
-            (Job::new("job-5", ex, rk, &[], None, 0), Priority::Low),
+            (("job-1", ex, rk, &[]), Priority::Normal),
+            (("job-2", ex, rk, &[]), Priority::Critical),
+            (("job-3", ex, rk, &[]), Priority::Trivial),
+            (("job-4", ex, rk, &[]), Priority::High),
+            (("job-5", ex, rk, &[]), Priority::Low),
         ];
-        let expected = vec!["job-2", "job-4", "job-1", "job-5", "job-3"];
+        let expected = VecDeque::from(vec!["job-2", "job-4", "job-1", "job-5", "job-3"]);
 
         let conn_url = "amqp://localhost/%2f";
         let exchanges = vec![exchange(ex).build()];
@@ -890,41 +1007,56 @@ mod tests {
                 .build(),
         ];
         let handle = core.handle();
-        let task = RabbitmqBroker::new_with_handle(
+        let task = Publisher::new_with_handle(
             conn_url,
             exchanges.clone(),
-            queues.clone(),
             handle.clone(),
         ).and_then(|broker| {
             let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
+                let mut headers = FieldTable::new();
+                headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
+                headers.insert("task".to_string(), AMQPValue::LongString(job.0.to_string()));
                 let properties = BasicProperties {
                     priority: Some(priority.to_u8()),
+                    headers: Some(headers),
                     ..Default::default()
                 };
-                broker.send(&job, &BasicPublishOptions::default(), properties)
+                broker.send(
+                    job.1,
+                    job.2,
+                    job.3,
+                    &BasicPublishOptions::default(),
+                    properties,
+                )
             });
             future::join_all(tasks)
         })
-            .and_then(move |_| RabbitmqBroker::new_with_handle(conn_url, exchanges, queues, handle))
-            .and_then(|broker| broker.recv())
+            .and_then(move |_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
             .and_then(|consumer| {
-                future::loop_fn((consumer.into_future(), expected.clone()), |(f, order)| {
-                    f.map_err(|(e, _)| e)
-                        .and_then(move |(next, consumer)| {
-                            let head = order[0];
-                            let tail = order.into_iter().skip(1).collect::<Vec<_>>();
-                            let (uid, job) = next.unwrap();
-                            assert_eq!(job.name(), head);
-                            consumer.ack(uid).map(|_| (consumer, tail))
-                        })
-                        .and_then(|(consumer, order)| {
-                            if order.is_empty() {
-                                Ok(future::Loop::Break(()))
-                            } else {
-                                Ok(future::Loop::Continue((consumer.into_future(), order)))
-                            }
-                        })
-                })
+                println!("Created consumer: {:?}", consumer);
+                future::loop_fn(
+                    (consumer.into_future(), expected.clone()),
+                    |(f, mut order)| {
+                        println!("Start iterating over consumer: {:?} // {:?}", f, order);
+                        f.map_err(|(e, _)| e)
+                            .and_then(move |(next, consumer)| {
+                                println!("Got delivery: {:?}", next);
+                                let head = order.pop_front().unwrap();
+                                let tail = order;
+                                let delivery = next.unwrap();
+                                println!("Comparing: {:?} to {:?}", delivery.task(), head);
+                                assert_eq!(delivery.task(), head);
+                                consumer.ack(delivery.tag()).map(|_| (consumer, tail))
+                            })
+                            .and_then(|(consumer, order)| {
+                                if order.is_empty() {
+                                    Ok(future::Loop::Break(()))
+                                } else {
+                                    Ok(future::Loop::Continue((consumer.into_future(), order)))
+                                }
+                            })
+                    },
+                )
             });
         core.run(task).unwrap();
     }
