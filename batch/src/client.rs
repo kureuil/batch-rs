@@ -110,11 +110,9 @@ impl ClientBuilder {
         if self.handle.is_none() {
             return Box::new(future::err(ErrorKind::NoHandle.into()));
         }
-        let task = Publisher::new_with_handle(
-            &self.connection_url,
-            self.exchanges,
-            self.handle.unwrap(),
-        ).and_then(|publisher| Ok(Client { publisher }));
+        let task =
+            Publisher::new_with_handle(&self.connection_url, self.exchanges, self.handle.unwrap())
+                .and_then(|publisher| Ok(Client { publisher }));
         Box::new(task)
     }
 }

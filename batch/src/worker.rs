@@ -325,8 +325,16 @@ impl<Ctx> Worker<Ctx> {
         let queues = self.queues;
         let exchanges = self.exchanges;
         let retries = self.retries;
-        let task = rabbitmq::Consumer::new_with_handle(&connection_url, exchanges.clone(), queues, handle.clone())
-            .join(rabbitmq::Publisher::new_with_handle(&connection_url, exchanges, handle.clone()))
+        let task = rabbitmq::Consumer::new_with_handle(
+            &connection_url,
+            exchanges.clone(),
+            queues,
+            handle.clone(),
+        ).join(rabbitmq::Publisher::new_with_handle(
+            &connection_url,
+            exchanges,
+            handle.clone(),
+        ))
             .and_then(|(consumer, publisher)| {
                 let publisher = Arc::new(publisher);
                 let retries = Arc::new(retries);
@@ -351,10 +359,7 @@ impl<Ctx> Worker<Ctx> {
                             }
                             Ok(status) => match status {
                                 JobStatus::Success => {
-                                    debug!(
-                                        "[{}] Child execution succeeded",
-                                        delivery.task_id()
-                                    );
+                                    debug!("[{}] Child execution succeeded", delivery.task_id());
                                     consumer.ack(delivery.tag())
                                 }
                                 JobStatus::Failed(_) => {

@@ -276,12 +276,7 @@ impl Publisher {
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
                     .map(|_| (channel, client))
             })
-            .map(move |(channel, client)| {
-                Publisher {
-                    client,
-                    channel,
-                }
-            });
+            .map(move |(channel, client)| Publisher { client, channel });
         Box::new(task)
     }
 
@@ -484,12 +479,14 @@ impl Consumer {
             .and_then(|(channel, client)| {
                 let consumer_channel = channel.clone();
                 future::join_all(queues.into_iter().map(move |queue| {
-                    consumer_channel.basic_consume(
-                        &queue.name,
-                        &format!("batch-rs-consumer-{}", queue.name),
-                        &BasicConsumeOptions::default(),
-                        &FieldTable::new(),
-                    ).map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    consumer_channel
+                        .basic_consume(
+                            &queue.name,
+                            &format!("batch-rs-consumer-{}", queue.name),
+                            &BasicConsumeOptions::default(),
+                            &FieldTable::new(),
+                        )
+                        .map_err(|e| ErrorKind::Rabbitmq(e).into())
                 })).join(future::ok((channel, client)))
             })
             .map(move |(mut consumers, (channel, client))| {
@@ -1007,30 +1004,27 @@ mod tests {
                 .build(),
         ];
         let handle = core.handle();
-        let task = Publisher::new_with_handle(
-            conn_url,
-            exchanges.clone(),
-            handle.clone(),
-        ).and_then(|broker| {
-            let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
-                let mut headers = FieldTable::new();
-                headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
-                headers.insert("task".to_string(), AMQPValue::LongString(job.0.to_string()));
-                let properties = BasicProperties {
-                    priority: Some(priority.to_u8()),
-                    headers: Some(headers),
-                    ..Default::default()
-                };
-                broker.send(
-                    job.1,
-                    job.2,
-                    job.3,
-                    &BasicPublishOptions::default(),
-                    properties,
-                )
-            });
-            future::join_all(tasks)
-        })
+        let task = Publisher::new_with_handle(conn_url, exchanges.clone(), handle.clone())
+            .and_then(|broker| {
+                let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
+                    let mut headers = FieldTable::new();
+                    headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
+                    headers.insert("task".to_string(), AMQPValue::LongString(job.0.to_string()));
+                    let properties = BasicProperties {
+                        priority: Some(priority.to_u8()),
+                        headers: Some(headers),
+                        ..Default::default()
+                    };
+                    broker.send(
+                        job.1,
+                        job.2,
+                        job.3,
+                        &BasicPublishOptions::default(),
+                        properties,
+                    )
+                });
+                future::join_all(tasks)
+            })
             .and_then(move |_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
             .and_then(|consumer| {
                 println!("Created consumer: {:?}", consumer);
