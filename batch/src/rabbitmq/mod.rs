@@ -27,12 +27,13 @@ mod tests {
         let mut core = Core::new().unwrap();
         let ex = "batch.tests.priorities";
         let rk = "prioritised-hello";
+        let body = "{}";
         let jobs = vec![
-            (("job-1", ex, rk, &[]), Priority::Normal),
-            (("job-2", ex, rk, &[]), Priority::Critical),
-            (("job-3", ex, rk, &[]), Priority::Trivial),
-            (("job-4", ex, rk, &[]), Priority::High),
-            (("job-5", ex, rk, &[]), Priority::Low),
+            (("job-1", ex, rk, body.as_bytes()), Priority::Normal),
+            (("job-2", ex, rk, body.as_bytes()), Priority::Critical),
+            (("job-3", ex, rk, body.as_bytes()), Priority::Trivial),
+            (("job-4", ex, rk, body.as_bytes()), Priority::High),
+            (("job-5", ex, rk, body.as_bytes()), Priority::Low),
         ];
         let expected = VecDeque::from(vec!["job-2", "job-4", "job-1", "job-5", "job-3"]);
 
