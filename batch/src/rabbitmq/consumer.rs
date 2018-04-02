@@ -69,7 +69,7 @@ impl Consumer {
                 future::join_all(queues.into_iter().map(move |queue| {
                     consumer_channel
                         .basic_consume(
-                            &queue.name(),
+                            queue.name(),
                             &format!("batch-rs-consumer-{}", queue.name()),
                             &BasicConsumeOptions::default(),
                             &FieldTable::new(),

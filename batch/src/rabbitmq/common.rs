@@ -35,8 +35,8 @@ where
                         future::join_all(queue.bindings().clone().into_iter().map(move |b| {
                             binding_channel.queue_bind(
                                 queue.name(),
-                                &b.exchange(),
-                                &b.routing_key(),
+                                b.exchange(),
+                                b.routing_key(),
                                 &QueueBindOptions::default(),
                                 &FieldTable::new(),
                             )
@@ -75,9 +75,9 @@ where
                     .and_then(move |_| {
                         future::join_all(exchange.bindings().clone().into_iter().map(move |b| {
                             binding_channel.exchange_bind(
-                                &b.exchange(),
-                                &exchange.name(),
-                                &b.routing_key(),
+                                b.exchange(),
+                                exchange.name(),
+                                b.routing_key(),
                                 &ExchangeBindOptions::default(),
                                 &FieldTable::new(),
                             )
@@ -113,7 +113,7 @@ pub fn connect(
             let task: Box<Future<Item = Stream, Error = Error>> = if uri.scheme == AMQPScheme::AMQP
             {
                 let task = TcpStream::from_stream(stream, &handle)
-                    .map(|stream| Stream::Raw(stream))
+                    .map(Stream::Raw)
                     .map_err(|e| ErrorKind::Io(e).into())
                     .into_future();
                 Box::new(task)
@@ -132,7 +132,7 @@ pub fn connect(
                     .and_then(move |(stream, connector)| {
                         connector
                             .connect_async(&host, stream)
-                            .map(|stream| Stream::Tls(stream))
+                            .map(Stream::Tls)
                             .map_err(|e| ErrorKind::Tls(e).into())
                     });
                 Box::new(task)

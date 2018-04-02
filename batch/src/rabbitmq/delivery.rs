@@ -120,7 +120,7 @@ impl Delivery {
             .properties
             .headers
             .take()
-            .unwrap_or_else(|| FieldTable::new());
+            .unwrap_or_else(FieldTable::new);
         headers.insert("retries".to_string(), AMQPValue::LongUInt(incrd_retries));
         self.0.properties.headers = Some(headers);
         incrd_retries

@@ -75,7 +75,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// ```
     pub fn new(context: Ctx) -> Self {
         WorkerBuilder {
-            context: context,
+            context,
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
             queues: Vec::new(),
