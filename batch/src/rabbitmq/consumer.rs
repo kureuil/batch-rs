@@ -20,7 +20,6 @@ use rabbitmq::types::{Exchange, Queue};
 /// The type of the stream is a tuple containing a `u64` which is a unique ID for the
 /// job used when `ack`'ing or `reject`'ing it, and a `Job` instance.
 pub struct Consumer {
-    client: Client<Stream>,
     channel: Channel<Stream>,
     stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
 }
@@ -52,21 +51,20 @@ impl Consumer {
                 client
                     .create_channel()
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .join(future::ok(client))
             })
-            .and_then(move |(channel, client)| {
+            .and_then(move |channel| {
                 let channel_ = channel.clone();
                 declare_exchanges(exchanges, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel, client))
+                    .map(|_| channel)
             })
-            .and_then(move |(channel, client)| {
+            .and_then(move |channel| {
                 let channel_ = channel.clone();
                 declare_queues(queues_, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel, client))
+                    .map(|_| channel)
             })
-            .and_then(|(channel, client)| {
+            .and_then(|channel| {
                 let consumer_channel = channel.clone();
                 future::join_all(queues.into_iter().map(move |queue| {
                     consumer_channel
@@ -77,20 +75,16 @@ impl Consumer {
                             &FieldTable::new(),
                         )
                         .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                })).join(future::ok((channel, client)))
+                })).join(future::ok(channel))
             })
-            .map(move |(mut consumers, (channel, client))| {
+            .map(move |(mut consumers, channel)| {
                 let initial: Box<
                     futures::Stream<Item = Message, Error = io::Error> + Send,
                 > = Box::new(consumers.pop().unwrap());
                 let stream = consumers.into_iter().fold(initial, |acc, consumer| {
                     Box::new(futures::Stream::select(acc, consumer))
                 });
-                Consumer {
-                    client,
-                    channel,
-                    stream,
-                }
+                Consumer { channel, stream }
             });
         Box::new(task)
     }
