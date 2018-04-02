@@ -47,7 +47,7 @@ mod tests {
         ];
         let handle = core.handle();
         let task = Publisher::new_with_handle(conn_url, exchanges.clone(), handle.clone())
-            .and_then(|broker| {
+            .and_then(|publisher| {
                 let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
                     let mut headers = FieldTable::new();
                     headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
@@ -57,7 +57,7 @@ mod tests {
                         headers: Some(headers),
                         ..Default::default()
                     };
-                    broker.send(
+                    publisher.send(
                         job.1,
                         job.2,
                         job.3,
