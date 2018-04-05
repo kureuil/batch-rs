@@ -7,14 +7,14 @@ use lapin::channel::{BasicProperties, BasicPublishOptions};
 use tokio_core::reactor::Handle;
 
 use error::{Error, ErrorKind};
-use job::Job;
-use rabbitmq::{Exchange, ExchangeBuilder, RabbitmqBroker};
+use rabbitmq::{Exchange, ExchangeBuilder, Publisher, Queue, QueueBuilder};
 
 /// A builder to ease the construction of `Client` instances.
 #[derive(Debug)]
 pub struct ClientBuilder {
     connection_url: String,
     exchanges: Vec<Exchange>,
+    queues: Vec<Queue>,
     handle: Option<Handle>,
 }
 
@@ -23,6 +23,7 @@ impl Default for ClientBuilder {
         ClientBuilder {
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
+            queues: Vec::new(),
             handle: None,
         }
     }
@@ -76,6 +77,29 @@ impl ClientBuilder {
         self
     }
 
+    /// Add queues to be declared when connecting to `RabbitMQ`.
+    ///
+    /// See `queue` documentation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::{queue, WorkerBuilder};
+    ///
+    /// let queues = vec![
+    ///     queue("hello-world").bind("batch.example", "hello-world"),
+    /// ];
+    /// let builder = WorkerBuilder::new(())
+    ///     .queues(queues);
+    /// ```
+    pub fn queues<QIter>(mut self, queues: QIter) -> Self
+    where
+        QIter: IntoIterator<Item = QueueBuilder>,
+    {
+        self.queues.extend(queues.into_iter().map(|q| q.build()));
+        self
+    }
+
     /// Set the `Handle` to the Tokio reactor that should be used by the `Worker`.
     ///
     /// # Example
@@ -111,12 +135,12 @@ impl ClientBuilder {
         if self.handle.is_none() {
             return Box::new(future::err(ErrorKind::NoHandle.into()));
         }
-        let task = RabbitmqBroker::new_with_handle(
+        let task = Publisher::new_with_handle(
             &self.connection_url,
             self.exchanges,
-            vec![],
+            self.queues,
             self.handle.unwrap(),
-        ).and_then(|broker| Ok(Client { broker }));
+        ).and_then(|publisher| Ok(Client { publisher }));
         Box::new(task)
     }
 }
@@ -124,7 +148,7 @@ impl ClientBuilder {
 /// The `Client` is responsible for sending tasks to the broker.
 #[derive(Clone, Debug)]
 pub struct Client {
-    broker: RabbitmqBroker,
+    publisher: Publisher,
 }
 
 impl Client {
@@ -134,11 +158,14 @@ impl Client {
     /// receiving jobs from the same broker.
     pub(crate) fn send(
         &self,
-        job: &Job,
+        exchange: &str,
+        routing_key: &str,
+        job: &[u8],
         options: &BasicPublishOptions,
         properties: BasicProperties,
     ) -> Box<Future<Item = (), Error = Error>> {
-        let task = self.broker.send(job, options, properties);
+        let task = self.publisher
+            .send(exchange, routing_key, job, options, properties);
         Box::new(task)
     }
 }

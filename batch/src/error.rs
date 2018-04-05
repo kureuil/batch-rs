@@ -1,8 +1,8 @@
 //! Error and Result module.
 
+use failure::{Backtrace, Context, Fail};
 use std::fmt;
 use std::result::Result as StdResult;
-use failure::{Backtrace, Context, Fail};
 
 /// `Error` type for the batch crate. Implements `Fail`.
 #[derive(Debug)]
@@ -167,7 +167,7 @@ impl From<ErrorKind> for Error {
 
 impl From<Context<ErrorKind>> for Error {
     fn from(inner: Context<ErrorKind>) -> Error {
-        Error { inner: inner }
+        Error { inner }
     }
 }
 

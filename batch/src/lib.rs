@@ -66,6 +66,8 @@
 
 extern crate amq_protocol;
 extern crate bytes;
+#[cfg(test)]
+extern crate env_logger;
 #[macro_use]
 extern crate failure;
 extern crate futures;

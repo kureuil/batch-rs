@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use futures::{Future, IntoFuture};
 use lapin::channel::{BasicProperties, BasicPublishOptions};
+use lapin::types::{AMQPValue, FieldTable};
 use uuid::Uuid;
 
 use client::Client;
 use error::{self, Error, Result};
 use rabbitmq::Exchange;
-use task::{Priority, Task};
 use ser;
+use task::{Priority, Task};
 
 /// A `Query` is responsible for publishing jobs to `RabbitMQ`.
 pub struct Query<T>
@@ -53,14 +54,36 @@ where
 {
     /// Create a new `Query` from a `Task` instance.
     pub fn new(task: T) -> Self {
+        let task_id = Uuid::new_v4().to_string();
+        let mut headers = FieldTable::new();
+        headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
+        headers.insert(
+            "task".to_string(),
+            AMQPValue::LongString(T::name().to_string()),
+        );
+        headers.insert("id".to_string(), AMQPValue::LongString(task_id.clone()));
+        headers.insert("root_id".to_string(), AMQPValue::Void);
+        headers.insert("parent_id".to_string(), AMQPValue::Void);
+        headers.insert("group".to_string(), AMQPValue::Void);
+        headers.insert(
+            "timelimit".to_string(),
+            AMQPValue::FieldArray(vec![
+                AMQPValue::Void,
+                T::timeout().map_or(AMQPValue::Void, |d| AMQPValue::Timestamp(d.as_secs())),
+            ]),
+        );
         let properties = BasicProperties {
             priority: Some(T::priority().to_u8()),
+            content_type: Some("application/json".to_string()),
+            content_encoding: Some("utf-8".to_string()),
+            headers: Some(headers),
+            correlation_id: Some(task_id),
             ..Default::default()
         };
         Query {
             task,
-            exchange: T::exchange().into(),
-            routing_key: T::routing_key().into(),
+            exchange: T::exchange().to_string(),
+            routing_key: T::routing_key().to_string(),
             timeout: T::timeout(),
             retries: T::retries(),
             options: BasicPublishOptions::default(),
@@ -129,15 +152,13 @@ where
             .into_future()
             .map_err(|e| e.into())
             .and_then(move |serialized| {
-                let job = Job::new(
-                    T::name(),
+                client.send(
                     &self.exchange,
                     &self.routing_key,
                     &serialized,
-                    self.timeout,
-                    self.retries,
-                );
-                client.send(&job, &self.options, self.properties)
+                    &self.options,
+                    self.properties,
+                )
             });
         Box::new(task)
     }
@@ -149,90 +170,6 @@ where
     T: Task + 'static,
 {
     Query::new(task)
-}
-
-/// A `Job` is a serialized `Task` with metadata about its status & how it should be executed.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Job {
-    uuid: Uuid,
-    name: String,
-    exchange: String,
-    routing_key: String,
-    task: Vec<u8>,
-    timeout: Option<Duration>,
-    retries: u32,
-}
-
-impl Job {
-    /// Create a new Job.
-    pub(crate) fn new(
-        name: &str,
-        exchange: &str,
-        routing_key: &str,
-        task: &[u8],
-        timeout: Option<Duration>,
-        retries: u32,
-    ) -> Job {
-        Job {
-            uuid: Uuid::new_v4(),
-            name: name.to_string(),
-            exchange: exchange.to_string(),
-            routing_key: routing_key.to_string(),
-            task: task.to_vec(),
-            timeout,
-            retries,
-        }
-    }
-
-    /// Returns the UUIDv4 of this job.
-    pub fn uuid(&self) -> &Uuid {
-        &self.uuid
-    }
-
-    /// Returns the name of the task associated to this job.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Returns the exchange this job should be sent to.
-    pub fn exchange(&self) -> &str {
-        &self.exchange
-    }
-
-    /// Returns the queue this job should be pushed to.
-    pub fn routing_key(&self) -> &str {
-        &self.routing_key
-    }
-
-    /// Returns the raw serialized task this job is associated to.
-    pub fn task(&self) -> &[u8] {
-        &self.task
-    }
-
-    /// Returns the timeout associated to this job.
-    pub fn timeout(&self) -> Option<Duration> {
-        self.timeout
-    }
-
-    /// Returns the number of retries this job is allowed.
-    pub fn retries(&self) -> u32 {
-        self.retries
-    }
-
-    /// Returns the `Job` that should be sent if the execution failed.
-    ///
-    /// If `retries` was 0, the function returns `None` as nothing should be sent to
-    /// the broker.
-    pub fn failed(self) -> Option<Job> {
-        if self.retries() == 0 {
-            None
-        } else {
-            Some(Job {
-                retries: self.retries() - 1,
-                ..self
-            })
-        }
-    }
 }
 
 /// The different states a `Job` can be in.

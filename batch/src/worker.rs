@@ -26,15 +26,15 @@ use lapin::channel::{BasicProperties, BasicPublishOptions};
 use tokio_core::reactor::{Core, Handle};
 use wait_timeout::ChildExt;
 
-use error::{self, Result};
 use de;
+use error::{self, Result};
+use job::{Failure as JobFailure, Status as JobStatus};
+use rabbitmq::{self, Exchange, ExchangeBuilder, Queue, QueueBuilder};
 use ser;
-use job::{Failure as JobFailure, Job, Status as JobStatus};
-use rabbitmq::{Exchange, ExchangeBuilder, Queue, QueueBuilder, RabbitmqBroker, RabbitmqConsumer};
 use task::{Perform, Task};
 
 /// Type of task handlers stored in `Worker`.
-type WorkerFn<Ctx> = Fn(&Job, Ctx) -> Result<()>;
+type WorkerFn<Ctx> = Fn(&[u8], Ctx) -> Result<()>;
 
 /// A builder to ease the construction of `Worker` instances.
 pub struct WorkerBuilder<Ctx> {
@@ -43,6 +43,7 @@ pub struct WorkerBuilder<Ctx> {
     exchanges: Vec<Exchange>,
     handle: Option<Handle>,
     handlers: HashMap<&'static str, Box<WorkerFn<Ctx>>>,
+    retries: HashMap<&'static str, u32>,
     queues: Vec<Queue>,
 }
 
@@ -53,8 +54,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(
             f,
-            "WorkerBuilder {{ connection_url: {:?} context: {:?} exchanges: {:?} queues: {:?} }}",
-            self.connection_url, self.context, self.exchanges, self.queues
+            "WorkerBuilder {{ connection_url: {:?} context: {:?} exchanges: {:?} retries: {:?} queues: {:?} }}",
+            self.connection_url, self.context, self.exchanges, self.retries, self.queues
         )
     }
 }
@@ -74,12 +75,13 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// ```
     pub fn new(context: Ctx) -> Self {
         WorkerBuilder {
-            context: context,
+            context,
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
             queues: Vec::new(),
             handle: None,
             handlers: HashMap::new(),
+            retries: HashMap::new(),
         }
     }
 
@@ -218,13 +220,13 @@ impl<Ctx> WorkerBuilder<Ctx> {
     {
         self.handlers.insert(
             T::name(),
-            Box::new(|job, ctx| -> Result<()> {
-                let task: T =
-                    de::from_slice(job.task()).map_err(error::ErrorKind::Deserialization)?;
+            Box::new(|data, ctx| -> Result<()> {
+                let task: T = de::from_slice(data).map_err(error::ErrorKind::Deserialization)?;
                 Perform::perform(&task, ctx);
                 Ok(())
             }),
         );
+        self.retries.insert(T::name(), T::retries());
         self
     }
 
@@ -248,6 +250,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
             handle: self.handle.unwrap(),
             handlers: self.handlers,
             exchanges: self.exchanges,
+            retries: self.retries,
             queues: self.queues,
         })
     }
@@ -259,6 +262,7 @@ pub struct Worker<Ctx> {
     context: Ctx,
     handle: Handle,
     handlers: HashMap<&'static str, Box<WorkerFn<Ctx>>>,
+    retries: HashMap<&'static str, u32>,
     exchanges: Vec<Exchange>,
     queues: Vec<Queue>,
 }
@@ -270,8 +274,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         write!(
             f,
-            "Worker {{ connection_url: {:?} context: {:?} queues: {:?} }}",
-            self.connection_url, self.context, self.queues
+            "Worker {{ connection_url: {:?} context: {:?} queues: {:?} retries: {:?} }}",
+            self.connection_url, self.context, self.queues, self.retries
         )
     }
 }
@@ -320,54 +324,66 @@ impl<Ctx> Worker<Ctx> {
         let connection_url = self.connection_url;
         let queues = self.queues;
         let exchanges = self.exchanges;
-        let ctor = |e: Vec<Exchange>, q: Vec<Queue>, h: &Handle| {
-            RabbitmqBroker::new_with_handle(&connection_url, e, q, h.clone())
-        };
-        let task = ctor(exchanges.clone(), queues.clone(), &handle)
-            .join(ctor(exchanges, queues, &handle))
-            .and_then(|(consume_broker, publish_broker)| {
-                let publish_broker = Arc::new(publish_broker);
-                consume_broker.recv().and_then(move |consumer| {
-                    future::loop_fn(consumer.into_future(), move |f| {
-                        let publish_broker = Arc::clone(&publish_broker);
-                        let handle = handle.clone();
-                        f.and_then(move |(next, consumer)| {
-                            let (uid, job) = match next {
-                                Some((uid, job)) => (uid, job),
-                                None => return Ok(future::Loop::Break(())),
-                            };
-                            let task = match spawn(&job) {
-                                Err(e) => {
-                                    error!("[{}] Couldn't spawn child process: {}", job.uuid(), e);
-                                    reject(&consumer, publish_broker, uid, job)
+        let retries = self.retries;
+        let task = rabbitmq::Consumer::new_with_handle(
+            &connection_url,
+            exchanges.clone(),
+            queues.clone(),
+            handle.clone(),
+        ).join(rabbitmq::Publisher::new_with_handle(
+            &connection_url,
+            exchanges,
+            queues,
+            handle.clone(),
+        ))
+            .and_then(|(consumer, publisher)| {
+                let publisher = Arc::new(publisher);
+                let retries = Arc::new(retries);
+                future::loop_fn(consumer.into_future(), move |f| {
+                    let publisher = Arc::clone(&publisher);
+                    let retries = Arc::clone(&retries);
+                    let handle = handle.clone();
+                    f.and_then(move |(next, consumer)| {
+                        let delivery = match next {
+                            Some(delivery) => delivery,
+                            None => return Ok(future::Loop::Break(())),
+                        };
+                        let max_retries = *retries.get(delivery.task()).unwrap_or(&0);
+                        let task = match spawn(&delivery) {
+                            Err(e) => {
+                                error!(
+                                    "[{}] Couldn't spawn child process: {}",
+                                    delivery.task_id(),
+                                    e
+                                );
+                                reject(&consumer, publisher, delivery, max_retries)
+                            }
+                            Ok(status) => match status {
+                                JobStatus::Success => {
+                                    debug!("[{}] Child execution succeeded", delivery.task_id());
+                                    consumer.ack(delivery.tag())
                                 }
-                                Ok(status) => match status {
-                                    JobStatus::Success => {
-                                        debug!("[{}] Child execution succeeded", job.uuid());
-                                        consumer.ack(uid)
-                                    }
-                                    JobStatus::Failed(_) => {
-                                        debug!("[{}] Child execution failed", job.uuid());
-                                        reject(&consumer, publish_broker, uid, job)
-                                    }
-                                    _ => unreachable!(),
-                                },
-                            };
-                            let task = task.map_err(move |e| {
-                                error!("An error occured: {}", e);
-                            });
-                            handle.spawn(task);
-                            Ok(future::Loop::Continue(consumer.into_future()))
-                        }).or_else(|(e, consumer)| {
-                            use failure::Fail;
+                                JobStatus::Failed(_) => {
+                                    debug!("[{}] Child execution failed", delivery.task_id());
+                                    reject(&consumer, publisher, delivery, max_retries)
+                                }
+                                _ => unreachable!(),
+                            },
+                        };
+                        let task = task.map_err(move |e| {
+                            error!("An error occured: {}", e);
+                        });
+                        handle.spawn(task);
+                        Ok(future::Loop::Continue(consumer.into_future()))
+                    }).or_else(|(e, consumer)| {
+                        use failure::Fail;
 
-                            let cause = match e.kind().cause() {
-                                Some(cause) => format!(" Cause: {}", cause),
-                                None => "".into(),
-                            };
-                            error!("Couldn't receive message from consumer: {}.{}", e, cause);
-                            Ok(future::Loop::Continue(consumer.into_future()))
-                        })
+                        let cause = match e.kind().cause() {
+                            Some(cause) => format!(" Cause: {}", cause),
+                            None => "".into(),
+                        };
+                        error!("Couldn't receive message from consumer: {}.{}", e, cause);
+                        Ok(future::Loop::Continue(consumer.into_future()))
                     })
                 })
             });
@@ -375,32 +391,39 @@ impl<Ctx> Worker<Ctx> {
     }
 
     fn execute(self) -> Result<()> {
-        let job: Job = de::from_reader(io::stdin()).map_err(error::ErrorKind::Deserialization)?;
-        if let Some(handler) = self.handlers.get(job.name()) {
-            if let Err(e) = (*handler)(&job, self.context) {
+        let delivery: rabbitmq::Delivery =
+            de::from_reader(io::stdin()).map_err(error::ErrorKind::Deserialization)?;
+        if let Some(handler) = self.handlers.get(delivery.task()) {
+            if let Err(e) = (*handler)(delivery.data(), self.context) {
                 error!("Couldn't process job: {}", e);
             }
         } else {
-            warn!("No handler registered for job: `{}'", job.name());
+            warn!("No handler registered for job: `{}'", delivery.task());
         }
         Ok(())
     }
 }
 
 fn reject(
-    consumer: &RabbitmqConsumer,
-    broker: Arc<RabbitmqBroker>,
-    uid: u64,
-    job: Job,
+    consumer: &rabbitmq::Consumer,
+    broker: Arc<rabbitmq::Publisher>,
+    mut delivery: rabbitmq::Delivery,
+    max_retries: u32,
 ) -> Box<Future<Item = (), Error = error::Error>> {
-    let task = consumer.reject(uid);
-    if let Some(job) = job.failed() {
-        debug!("[{}] Retry job after failure: {:?}", job.uuid(), job);
+    let task = consumer.reject(delivery.tag());
+    if delivery.should_retry(max_retries) {
+        debug!(
+            "[{}] Retry job after failure: {:?}",
+            delivery.task_id(),
+            delivery
+        );
         Box::new(task.and_then(move |_| {
             broker.send(
-                &job,
+                delivery.exchange(),
+                delivery.routing_key(),
+                delivery.data(),
                 &BasicPublishOptions::default(),
-                BasicProperties::default(),
+                delivery.properties().clone(),
             )
         }))
     } else {
@@ -408,7 +431,7 @@ fn reject(
     }
 }
 
-fn spawn(job: &Job) -> Result<JobStatus> {
+fn spawn(delivery: &rabbitmq::Delivery) -> Result<JobStatus> {
     use std::io::Write;
 
     let current_exe = env::current_exe().map_err(error::ErrorKind::SubProcessManagement)?;
@@ -417,7 +440,7 @@ fn spawn(job: &Job) -> Result<JobStatus> {
         .stdin(process::Stdio::piped())
         .spawn()
         .map_err(error::ErrorKind::SubProcessManagement)?;
-    let payload = ser::to_vec(&job).map_err(error::ErrorKind::Serialization)?;
+    let payload = ser::to_vec(&delivery).map_err(error::ErrorKind::Serialization)?;
     {
         let stdin = child.stdin.as_mut().expect("failed to get stdin");
         stdin
@@ -427,7 +450,8 @@ fn spawn(job: &Job) -> Result<JobStatus> {
             .flush()
             .map_err(error::ErrorKind::SubProcessManagement)?;
     }
-    if let Some(duration) = job.timeout() {
+    let (_, timeout) = delivery.timeout();
+    if let Some(duration) = timeout {
         drop(child.stdin.take());
         if let Some(status) = child
             .wait_timeout(duration)
