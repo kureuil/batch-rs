@@ -18,6 +18,8 @@ mod tests {
     #[test]
     fn priority_queue() {
         use std::collections::VecDeque;
+        use std::thread;
+        use std::time;
         use futures::{future, Future, Stream};
         use lapin::channel::{BasicProperties, BasicPublishOptions};
         use lapin_async::types::{AMQPValue, FieldTable};
@@ -46,7 +48,7 @@ mod tests {
                 .build(),
         ];
         let handle = core.handle();
-        let task = Publisher::new_with_handle(conn_url, exchanges.clone(), handle.clone())
+        let task = Publisher::new_with_handle(conn_url, exchanges.clone(), queues.clone(), handle.clone())
             .and_then(|publisher| {
                 let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
                     let mut headers = FieldTable::new();
@@ -67,7 +69,7 @@ mod tests {
                 });
                 future::join_all(tasks)
             })
-            .and_then(move |_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
+            .and_then(|_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
             .and_then(|consumer| {
                 println!("Created consumer: {:?}", consumer);
                 future::loop_fn(

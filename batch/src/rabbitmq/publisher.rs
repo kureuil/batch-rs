@@ -7,9 +7,9 @@ use lapin::client::Client;
 use tokio_core::reactor::Handle;
 
 use error::{Error, ErrorKind};
-use rabbitmq::common::{connect, declare_exchanges};
+use rabbitmq::common::{connect, declare_exchanges, declare_queues};
 use rabbitmq::stream::Stream;
-use rabbitmq::types::Exchange;
+use rabbitmq::types::{Exchange, Queue};
 
 /// An AMQP based publisher for the Batch distributed task queue.
 #[derive(Clone)]
@@ -26,15 +26,18 @@ impl fmt::Debug for Publisher {
 
 impl Publisher {
     /// Create a `Publisher` instance from a RabbitMQ URI and an explicit tokio handle.
-    pub fn new_with_handle<E>(
+    pub fn new_with_handle<E, Q>(
         connection_url: &str,
         exchanges_iter: E,
+        queues_iter: Q,
         handle: Handle,
     ) -> Box<Future<Item = Self, Error = Error>>
     where
         E: IntoIterator<Item = Exchange>,
+        Q: IntoIterator<Item = Queue>,
     {
         let exchanges = exchanges_iter.into_iter().collect::<Vec<_>>();
+        let queues = queues_iter.into_iter().collect::<Vec<_>>();
 
         let task = connect(connection_url, handle)
             .and_then(|client| {
@@ -46,6 +49,12 @@ impl Publisher {
             .and_then(move |(channel, client)| {
                 let channel_ = channel.clone();
                 declare_exchanges(exchanges, channel_)
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .map(|_| (channel, client))
+            })
+            .and_then(move |(channel, client)| {
+                let channel_ = channel.clone();
+                declare_queues(queues, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
                     .map(|_| (channel, client))
             })

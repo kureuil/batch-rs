@@ -328,11 +328,12 @@ impl<Ctx> Worker<Ctx> {
         let task = rabbitmq::Consumer::new_with_handle(
             &connection_url,
             exchanges.clone(),
-            queues,
+            queues.clone(),
             handle.clone(),
         ).join(rabbitmq::Publisher::new_with_handle(
             &connection_url,
             exchanges,
+            queues,
             handle.clone(),
         ))
             .and_then(|(consumer, publisher)| {
