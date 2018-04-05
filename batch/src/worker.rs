@@ -26,11 +26,11 @@ use lapin::channel::{BasicProperties, BasicPublishOptions};
 use tokio_core::reactor::{Core, Handle};
 use wait_timeout::ChildExt;
 
-use error::{self, Result};
 use de;
-use ser;
+use error::{self, Result};
 use job::{Failure as JobFailure, Status as JobStatus};
 use rabbitmq::{self, Exchange, ExchangeBuilder, Queue, QueueBuilder};
+use ser;
 use task::{Perform, Task};
 
 /// Type of task handlers stored in `Worker`.

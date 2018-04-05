@@ -17,12 +17,12 @@ mod tests {
 
     #[test]
     fn priority_queue() {
-        use std::collections::VecDeque;
-        use std::thread;
-        use std::time;
         use futures::{future, Future, Stream};
         use lapin::channel::{BasicProperties, BasicPublishOptions};
         use lapin_async::types::{AMQPValue, FieldTable};
+        use std::collections::VecDeque;
+        use std::thread;
+        use std::time;
         use tokio_core::reactor::Core;
 
         ::env_logger::init();
@@ -48,54 +48,56 @@ mod tests {
                 .build(),
         ];
         let handle = core.handle();
-        let task = Publisher::new_with_handle(conn_url, exchanges.clone(), queues.clone(), handle.clone())
-            .and_then(|publisher| {
-                let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
-                    let mut headers = FieldTable::new();
-                    headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
-                    headers.insert("task".to_string(), AMQPValue::LongString(job.0.to_string()));
-                    let properties = BasicProperties {
-                        priority: Some(priority.to_u8()),
-                        headers: Some(headers),
-                        ..Default::default()
-                    };
-                    publisher.send(
-                        job.1,
-                        job.2,
-                        job.3,
-                        &BasicPublishOptions::default(),
-                        properties,
+        let task =
+            Publisher::new_with_handle(conn_url, exchanges.clone(), queues.clone(), handle.clone())
+                .and_then(|publisher| {
+                    let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
+                        let mut headers = FieldTable::new();
+                        headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
+                        headers
+                            .insert("task".to_string(), AMQPValue::LongString(job.0.to_string()));
+                        let properties = BasicProperties {
+                            priority: Some(priority.to_u8()),
+                            headers: Some(headers),
+                            ..Default::default()
+                        };
+                        publisher.send(
+                            job.1,
+                            job.2,
+                            job.3,
+                            &BasicPublishOptions::default(),
+                            properties,
+                        )
+                    });
+                    future::join_all(tasks)
+                })
+                .and_then(|_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
+                .and_then(|consumer| {
+                    println!("Created consumer: {:?}", consumer);
+                    future::loop_fn(
+                        (consumer.into_future(), expected.clone()),
+                        |(f, mut order)| {
+                            println!("Start iterating over consumer: {:?} // {:?}", f, order);
+                            f.map_err(|(e, _)| e)
+                                .and_then(move |(next, consumer)| {
+                                    println!("Got delivery: {:?}", next);
+                                    let head = order.pop_front().unwrap();
+                                    let tail = order;
+                                    let delivery = next.unwrap();
+                                    println!("Comparing: {:?} to {:?}", delivery.task(), head);
+                                    assert_eq!(delivery.task(), head);
+                                    consumer.ack(delivery.tag()).map(|_| (consumer, tail))
+                                })
+                                .and_then(|(consumer, order)| {
+                                    if order.is_empty() {
+                                        Ok(future::Loop::Break(()))
+                                    } else {
+                                        Ok(future::Loop::Continue((consumer.into_future(), order)))
+                                    }
+                                })
+                        },
                     )
                 });
-                future::join_all(tasks)
-            })
-            .and_then(|_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
-            .and_then(|consumer| {
-                println!("Created consumer: {:?}", consumer);
-                future::loop_fn(
-                    (consumer.into_future(), expected.clone()),
-                    |(f, mut order)| {
-                        println!("Start iterating over consumer: {:?} // {:?}", f, order);
-                        f.map_err(|(e, _)| e)
-                            .and_then(move |(next, consumer)| {
-                                println!("Got delivery: {:?}", next);
-                                let head = order.pop_front().unwrap();
-                                let tail = order;
-                                let delivery = next.unwrap();
-                                println!("Comparing: {:?} to {:?}", delivery.task(), head);
-                                assert_eq!(delivery.task(), head);
-                                consumer.ack(delivery.tag()).map(|_| (consumer, tail))
-                            })
-                            .and_then(|(consumer, order)| {
-                                if order.is_empty() {
-                                    Ok(future::Loop::Break(()))
-                                } else {
-                                    Ok(future::Loop::Continue((consumer.into_future(), order)))
-                                }
-                            })
-                    },
-                )
-            });
         core.run(task).unwrap();
     }
 }

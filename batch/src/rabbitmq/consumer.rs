@@ -1,5 +1,5 @@
-use std::io;
 use std::fmt;
+use std::io;
 use std::result::Result as StdResult;
 
 use futures::{self, future, Async, Future, Poll};

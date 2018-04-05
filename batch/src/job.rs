@@ -12,8 +12,8 @@ use uuid::Uuid;
 use client::Client;
 use error::{self, Error, Result};
 use rabbitmq::Exchange;
-use task::{Priority, Task};
 use ser;
+use task::{Priority, Task};
 
 /// A `Query` is responsible for publishing jobs to `RabbitMQ`.
 pub struct Query<T>
