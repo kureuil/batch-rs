@@ -19,14 +19,13 @@ mod tests {
     fn priority_queue() {
         use futures::{future, Future, Stream};
         use lapin::channel::{BasicProperties, BasicPublishOptions};
-        use lapin_async::types::{AMQPValue, FieldTable};
+        use lapin::types::{AMQPValue, FieldTable};
         use std::collections::VecDeque;
         use std::thread;
         use std::time;
-        use tokio_core::reactor::Core;
+        use tokio::reactor::Handle;
 
         ::env_logger::init();
-        let mut core = Core::new().unwrap();
         let ex = "batch.tests.priorities";
         let rk = "prioritised-hello";
         let body = "{}";
@@ -47,11 +46,12 @@ mod tests {
                 .bind(ex, rk)
                 .build(),
         ];
-        let handle = core.handle();
+        let handle = Handle::current();
         let task =
             Publisher::new_with_handle(conn_url, exchanges.clone(), queues.clone(), handle.clone())
-                .and_then(|publisher| {
-                    let tasks = jobs.iter().map(move |&(ref job, ref priority)| {
+                .and_then(move |publisher| {
+                    info!("Publishing messages");
+                    let tasks = jobs.into_iter().map(move |(job, priority)| {
                         let mut headers = FieldTable::new();
                         headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
                         headers
@@ -71,24 +71,29 @@ mod tests {
                     });
                     future::join_all(tasks)
                 })
-                .and_then(|_| Consumer::new_with_handle(conn_url, exchanges, queues, handle))
-                .and_then(|consumer| {
-                    println!("Created consumer: {:?}", consumer);
+                .and_then(move |_| {
+                    info!("Published all messages");
+                    Consumer::new_with_handle(conn_url, exchanges, queues, handle)
+                })
+                .and_then(move |consumer| {
+                    info!("Starting recursive loop fn");
                     future::loop_fn(
                         (consumer.into_future(), expected.clone()),
                         |(f, mut order)| {
-                            println!("Start iterating over consumer: {:?} // {:?}", f, order);
+                            info!("Iterating over consumer deliveries");
+                            info!(" -> {:?}", order);
                             f.map_err(|(e, _)| e)
                                 .and_then(move |(next, consumer)| {
-                                    println!("Got delivery: {:?}", next);
                                     let head = order.pop_front().unwrap();
                                     let tail = order;
                                     let delivery = next.unwrap();
-                                    println!("Comparing: {:?} to {:?}", delivery.task(), head);
                                     assert_eq!(delivery.task(), head);
                                     consumer.ack(delivery.tag()).map(|_| (consumer, tail))
                                 })
                                 .and_then(|(consumer, order)| {
+                                    info!("End of iteration:");
+                                    info!(" -> {:?}", order);
+                                    info!(" -> {:?}", order.is_empty());
                                     if order.is_empty() {
                                         Ok(future::Loop::Break(()))
                                     } else {
@@ -97,7 +102,8 @@ mod tests {
                                 })
                         },
                     )
-                });
-        core.run(task).unwrap();
+                })
+                .map_err(|e| panic!("Couldn't complete test: {}", e));
+        ::tokio::run(task);
     }
 }

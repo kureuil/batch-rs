@@ -14,12 +14,11 @@
 //! extern crate serde;
 //! #[macro_use]
 //! extern crate serde_derive;
-//! extern crate tokio_core;
+//! extern crate tokio;
 //!
 //! use batch::{exchange, job, ClientBuilder};
 //! # use failure::Error;
 //! use futures::Future;
-//! use tokio_core::reactor::Core;
 //!
 //! #[derive(Serialize, Deserialize, Task)]
 //! #[task_routing_key = "hello-world"]
@@ -28,20 +27,12 @@
 //! }
 //!
 //! fn main() {
-//! #   example().unwrap();
-//! # }
-//! #
-//! # fn example() -> Result<(), Error> {
-//!     let mut core = Core::new()?;
-//!     let handle = core.handle();
-//!
 //!     let exchanges = vec![
 //!         exchange("batch.examples"),
 //!     ];
 //!     let client = ClientBuilder::new()
 //!         .connection_url("amqp://localhost/%2f")
 //!         .exchanges(exchanges)
-//!         .handle(handle)
 //!         .build();
 //!     let send = client.and_then(|client| {
 //!         let task = SayHello {
@@ -49,12 +40,11 @@
 //!         };
 //!
 //!         job(task).exchange("batch.example").send(&client)
-//!     });
+//!     }).map_err(|e| eprintln!("Couldn't publish message: {}", e));
 //!
 //! # if false {
-//!     core.run(send)?;
+//!     tokio::run(send);
 //! # }
-//! # Ok(())
 //! }
 //! ```
 
@@ -71,7 +61,6 @@ extern crate env_logger;
 #[macro_use]
 extern crate failure;
 extern crate futures;
-extern crate lapin_async;
 extern crate lapin_futures as lapin;
 #[macro_use]
 extern crate log;
@@ -80,8 +69,12 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate tokio_core;
+#[cfg(test)]
+extern crate tokio;
+extern crate tokio_executor;
 extern crate tokio_io;
+extern crate tokio_reactor;
+extern crate tokio_tcp;
 extern crate tokio_tls;
 extern crate uuid;
 extern crate wait_timeout;

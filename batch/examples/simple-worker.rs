@@ -1,13 +1,14 @@
 #[macro_use]
 extern crate batch;
 extern crate env_logger;
+extern crate futures;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate tokio_core;
+extern crate tokio;
 
 use batch::{exchange, queue, Perform, WorkerBuilder};
-use tokio_core::reactor::Core;
+use futures::Future;
 
 #[derive(Serialize, Deserialize, Task)]
 #[task_name = "batch::SayHello"]
@@ -27,17 +28,18 @@ impl Perform for SayHello {
 fn main() {
     env_logger::init();
     println!("Starting RabbitMQ worker example");
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
     let exchanges = vec![exchange("batch.example")];
     let queues = vec![queue("hello-world").bind("batch.example", "hello-world")];
     let worker = WorkerBuilder::new(())
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
         .queues(queues)
-        .handle(handle)
         .task::<SayHello>()
         .build()
         .unwrap();
-    core.run(worker.run()).unwrap();
+    tokio::run(
+        worker
+            .run()
+            .map_err(|e| eprintln!("An error occured in the Worker: {}", e)),
+    );
 }

@@ -50,7 +50,7 @@ where
 
 impl<T> Query<T>
 where
-    T: Task + 'static,
+    T: Task + Send + 'static,
 {
     /// Create a new `Query` from a `Task` instance.
     pub fn new(task: T) -> Self {
@@ -145,7 +145,7 @@ where
     }
 
     /// Send the job using the given client.
-    pub fn send(self, client: &Client) -> Box<Future<Item = (), Error = Error>> {
+    pub fn send(self, client: &Client) -> Box<Future<Item = (), Error = Error> + Send> {
         let client = client.clone();
         let task = ser::to_vec(&self.task)
             .map_err(error::ErrorKind::Serialization)
@@ -167,7 +167,7 @@ where
 /// Shorthand to create a new `Query` instance from a `Task`.
 pub fn job<T>(task: T) -> Query<T>
 where
-    T: Task + 'static,
+    T: Task + Send + 'static,
 {
     Query::new(task)
 }

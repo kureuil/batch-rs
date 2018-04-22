@@ -3,8 +3,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use error::{Error, ErrorKind, Result};
 

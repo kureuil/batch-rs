@@ -5,11 +5,10 @@ extern crate futures;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate tokio_core;
+extern crate tokio;
 
 use batch::{exchange, job, ClientBuilder};
-use futures::Future;
-use tokio_core::reactor::Core;
+use futures::{future, Future};
 
 #[derive(Serialize, Deserialize, Task)]
 #[task_name = "batch::SayHello"]
@@ -21,19 +20,21 @@ struct SayHello {
 fn main() {
     env_logger::init();
     println!("Starting RabbitMQ client example");
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
     let exchanges = vec![exchange("batch.example")];
     let client = ClientBuilder::new()
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
-        .handle(handle)
         .build();
-    let send = client.and_then(|client| {
-        let task = SayHello {
-            to: "Ferris".into(),
-        };
-        job(task).exchange("batch.example").send(&client)
-    });
-    core.run(send).unwrap();
+    let send = client
+        .and_then(|client| {
+            let task = SayHello {
+                to: "Ferris".into(),
+            };
+            job(task).exchange("batch.example").send(&client)
+        })
+        .map_err(|e| eprintln!("An error occured in the client: {}", e));
+    tokio::run(future::lazy(|| {
+        tokio::spawn(send);
+        Ok(())
+    }));
 }

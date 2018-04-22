@@ -23,7 +23,8 @@ use std::time::Duration;
 
 use futures::{future, Future, IntoFuture, Stream};
 use lapin::channel::{BasicProperties, BasicPublishOptions};
-use tokio_core::reactor::{Core, Handle};
+use tokio_executor;
+use tokio_reactor::Handle;
 use wait_timeout::ChildExt;
 
 use de;
@@ -41,7 +42,7 @@ pub struct WorkerBuilder<Ctx> {
     connection_url: String,
     context: Ctx,
     exchanges: Vec<Exchange>,
-    handle: Option<Handle>,
+    handle: Handle,
     handlers: HashMap<&'static str, Box<WorkerFn<Ctx>>>,
     retries: HashMap<&'static str, u32>,
     queues: Vec<Queue>,
@@ -79,7 +80,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
             queues: Vec::new(),
-            handle: None,
+            handle: Handle::current(),
             handlers: HashMap::new(),
             retries: HashMap::new(),
         }
@@ -156,27 +157,19 @@ impl<Ctx> WorkerBuilder<Ctx> {
     ///
     /// ```
     /// # extern crate batch;
-    /// # extern crate failure;
-    /// # extern crate tokio_core;
+    /// # extern crate tokio;
     /// #
     /// use batch::WorkerBuilder;
-    /// # use failure::Error;
-    /// use tokio_core::reactor::Core;
+    /// use tokio::reactor::Handle;
     ///
     /// # fn main() {
-    /// #     example().unwrap();
-    /// # }
-    /// #
-    /// # fn example() -> Result<(), Error> {
-    /// let core = Core::new()?;
-    /// let handle = core.handle();
+    /// let handle = Handle::current();
     /// let builder = WorkerBuilder::new(())
     ///     .handle(handle);
-    /// #     Ok(())
     /// # }
     /// ```
     pub fn handle(mut self, handle: Handle) -> Self {
-        self.handle = Some(handle);
+        self.handle = handle;
         self
     }
 
@@ -241,13 +234,10 @@ impl<Ctx> WorkerBuilder<Ctx> {
     ///     .build();
     /// ```
     pub fn build(self) -> Result<Worker<Ctx>> {
-        if self.handle.is_none() {
-            Err(error::ErrorKind::NoHandle)?;
-        }
         Ok(Worker {
             connection_url: self.connection_url,
             context: self.context,
-            handle: self.handle.unwrap(),
+            handle: self.handle,
             handlers: self.handlers,
             exchanges: self.exchanges,
             retries: self.retries,
@@ -288,38 +278,37 @@ impl<Ctx> Worker<Ctx> {
     /// ```rust
     /// extern crate batch;
     /// # extern crate failure;
-    /// extern crate tokio_core;
+    /// extern crate futures;
+    /// extern crate tokio;
     ///
     /// use batch::WorkerBuilder;
     /// # use failure::Error;
-    /// use tokio_core::reactor::Core;
+    /// use futures::Future;
     ///
     /// fn main() {
     /// #   example().unwrap();
     /// # }
     /// #
     /// # fn example() -> Result<(), Error> {
-    ///     let mut core = Core::new()?;
-    ///     let handle = core.handle();
     ///     let worker = WorkerBuilder::new(())
-    ///         .handle(handle)
     ///         .build()?;
-    ///     let task = worker.run();
+    ///     let task = worker.run()
+    ///         .map_err(|e| eprintln!("Couldn't run worker: {}", e));
     ///
     /// # if false {
-    ///     core.run(task)?;
+    ///     tokio::run(task);
     /// # }
     /// # Ok(())
     /// }
     /// ```
-    pub fn run(self) -> Box<Future<Item = (), Error = error::Error>> {
+    pub fn run(self) -> Box<Future<Item = (), Error = error::Error> + Send> {
         match env::var("BATCHRS_WORKER_IS_EXECUTOR") {
             Ok(_) => Box::new(self.execute().into_future()),
             Err(_) => self.supervise(),
         }
     }
 
-    fn supervise(self) -> Box<Future<Item = (), Error = error::Error>> {
+    fn supervise(self) -> Box<Future<Item = (), Error = error::Error> + Send> {
         let handle = self.handle;
         let connection_url = self.connection_url;
         let queues = self.queues;
@@ -342,7 +331,6 @@ impl<Ctx> Worker<Ctx> {
                 future::loop_fn(consumer.into_future(), move |f| {
                     let publisher = Arc::clone(&publisher);
                     let retries = Arc::clone(&retries);
-                    let handle = handle.clone();
                     f.and_then(move |(next, consumer)| {
                         let delivery = match next {
                             Some(delivery) => delivery,
@@ -373,7 +361,7 @@ impl<Ctx> Worker<Ctx> {
                         let task = task.map_err(move |e| {
                             error!("An error occured: {}", e);
                         });
-                        handle.spawn(task);
+                        tokio_executor::spawn(Box::new(task));
                         Ok(future::Loop::Continue(consumer.into_future()))
                     }).or_else(|(e, consumer)| {
                         use failure::Fail;
@@ -409,7 +397,7 @@ fn reject(
     broker: Arc<rabbitmq::Publisher>,
     mut delivery: rabbitmq::Delivery,
     max_retries: u32,
-) -> Box<Future<Item = (), Error = error::Error>> {
+) -> Box<Future<Item = (), Error = error::Error> + Send> {
     let task = consumer.reject(delivery.tag());
     if delivery.should_retry(max_retries) {
         debug!(

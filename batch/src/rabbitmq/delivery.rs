@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use lapin::types;
-use lapin_async::generated::basic::Properties;
-use lapin_async::queue::Message;
-use lapin_async::types::{AMQPValue, FieldTable};
+use lapin::channel::BasicProperties as Properties;
+use lapin::message::Delivery as Message;
+use lapin::types::{self, AMQPValue, FieldTable};
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "Properties")]
