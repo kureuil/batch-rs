@@ -7,7 +7,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate tokio;
 
-use batch::{exchange, job, ClientBuilder};
+use batch::{exchange, job, queue, ClientBuilder};
 use futures::{future, Future};
 
 #[derive(Serialize, Deserialize, Task)]
@@ -21,9 +21,11 @@ fn main() {
     env_logger::init();
     println!("Starting RabbitMQ client example");
     let exchanges = vec![exchange("batch.example")];
+    let queues = vec![queue("hello-world").bind("batch.example", "hello-world")];
     let client = ClientBuilder::new()
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
+        .queues(queues)
         .build();
     let send = client
         .and_then(|client| {
