@@ -2,8 +2,7 @@ use std::cmp;
 use std::collections::BTreeSet;
 
 use lapin::channel::{ExchangeDeclareOptions, QueueDeclareOptions};
-use lapin::types::FieldTable;
-use lapin_async::types::AMQPValue;
+use lapin::types::{AMQPValue, FieldTable};
 
 /// A binding from a queue to an exchange, or from an exchange to an exchange.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

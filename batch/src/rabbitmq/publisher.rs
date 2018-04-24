@@ -1,13 +1,14 @@
 use std::fmt;
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 use futures::{future, Future};
 use lapin::channel::{BasicProperties, BasicPublishOptions, Channel};
 use lapin::client::Client;
-use tokio_core::reactor::Handle;
+use tokio_reactor::Handle;
 
 use error::{Error, ErrorKind};
-use rabbitmq::common::{connect, declare_exchanges, declare_queues};
+use rabbitmq::common::{connect, declare_exchanges, declare_queues, HeartbeatHandle};
 use rabbitmq::stream::Stream;
 use rabbitmq::types::{Exchange, Queue};
 
@@ -15,7 +16,7 @@ use rabbitmq::types::{Exchange, Queue};
 #[derive(Clone)]
 pub struct Publisher {
     channel: Channel<Stream>,
-    client: Client<Stream>,
+    heartbeat_handle: Arc<HeartbeatHandle>,
 }
 
 impl fmt::Debug for Publisher {
@@ -31,34 +32,43 @@ impl Publisher {
         exchanges_iter: E,
         queues_iter: Q,
         handle: Handle,
-    ) -> Box<Future<Item = Self, Error = Error>>
+    ) -> Box<Future<Item = Self, Error = Error> + Send>
     where
-        E: IntoIterator<Item = Exchange>,
-        Q: IntoIterator<Item = Queue>,
+        E: IntoIterator<Item = Exchange> + Send,
+        Q: IntoIterator<Item = Queue> + Send,
     {
         let exchanges = exchanges_iter.into_iter().collect::<Vec<_>>();
         let queues = queues_iter.into_iter().collect::<Vec<_>>();
 
         let task = connect(connection_url, handle)
-            .and_then(|client| {
+            .and_then(|(client, heartbeat_handle)| {
+                trace!("Creating publisher's RabbitMQ channel");
                 client
                     .create_channel()
+                    .map(move |channel| {
+                        trace!("Created publisher's RabbitMQ channel");
+                        (channel, heartbeat_handle)
+                    })
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .join(future::ok(client))
             })
-            .and_then(move |(channel, client)| {
+            .and_then(move |(channel, heartbeat_handle)| {
+                trace!("Declaring publisher's RabbitMQ exchanges");
                 let channel_ = channel.clone();
                 declare_exchanges(exchanges, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel, client))
+                    .map(|_| (channel, heartbeat_handle))
             })
-            .and_then(move |(channel, client)| {
+            .and_then(move |(channel, heartbeat_handle)| {
+                trace!("Declaring publisher's RabbitMQ queues");
                 let channel_ = channel.clone();
                 declare_queues(queues, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| (channel, client))
+                    .map(|_| (channel, heartbeat_handle))
             })
-            .map(move |(channel, client)| Publisher { client, channel });
+            .map(move |(channel, heartbeat_handle)| Publisher {
+                channel,
+                heartbeat_handle: Arc::new(heartbeat_handle),
+            });
         Box::new(task)
     }
 
@@ -72,7 +82,7 @@ impl Publisher {
         serialized: &[u8],
         options: &BasicPublishOptions,
         properties: BasicProperties,
-    ) -> Box<Future<Item = (), Error = Error>> {
+    ) -> Box<Future<Item = (), Error = Error> + Send> {
         let task = self.channel
             .basic_publish(exchange, routing_key, serialized, options, properties)
             .and_then(move |_| future::ok(()))

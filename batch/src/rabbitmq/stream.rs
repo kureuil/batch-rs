@@ -5,8 +5,8 @@ use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 pub enum Stream {
-    Raw(::tokio_core::net::TcpStream),
-    Tls(::tokio_tls::TlsStream<::tokio_core::net::TcpStream>),
+    Raw(::tokio_tcp::TcpStream),
+    Tls(::tokio_tls::TlsStream<::tokio_tcp::TcpStream>),
 }
 
 impl Read for Stream {

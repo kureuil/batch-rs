@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 
 use futures::{future, Future};
 use lapin::channel::{BasicProperties, BasicPublishOptions};
-use tokio_core::reactor::Handle;
+use tokio_reactor::Handle;
 
 use error::{Error, ErrorKind};
 use rabbitmq::{Exchange, ExchangeBuilder, Publisher, Queue, QueueBuilder};
@@ -15,7 +15,7 @@ pub struct ClientBuilder {
     connection_url: String,
     exchanges: Vec<Exchange>,
     queues: Vec<Queue>,
-    handle: Option<Handle>,
+    handle: Handle,
 }
 
 impl Default for ClientBuilder {
@@ -24,7 +24,7 @@ impl Default for ClientBuilder {
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
             queues: Vec::new(),
-            handle: None,
+            handle: Handle::current(),
         }
     }
 }
@@ -107,39 +107,35 @@ impl ClientBuilder {
     /// ```
     /// # extern crate batch;
     /// # extern crate failure;
-    /// # extern crate tokio_core;
+    /// # extern crate tokio;
     /// #
     /// use batch::ClientBuilder;
     /// # use failure::Error;
-    /// use tokio_core::reactor::Core;
+    /// use tokio::reactor::Handle;
     ///
     /// # fn main() {
     /// #     example().unwrap();
     /// # }
     /// #
     /// # fn example() -> Result<(), Error> {
-    /// let core = Core::new()?;
-    /// let handle = core.handle();
+    /// let handle = Handle::current();
     /// let builder = ClientBuilder::new()
     ///     .handle(handle);
     /// # Ok(())
     /// # }
     /// ```
     pub fn handle(mut self, handle: Handle) -> Self {
-        self.handle = Some(handle);
+        self.handle = handle;
         self
     }
 
     /// Build a new `Client` instance from this builder data.
-    pub fn build(self) -> Box<Future<Item = Client, Error = Error>> {
-        if self.handle.is_none() {
-            return Box::new(future::err(ErrorKind::NoHandle.into()));
-        }
+    pub fn build(self) -> Box<Future<Item = Client, Error = Error> + Send> {
         let task = Publisher::new_with_handle(
             &self.connection_url,
             self.exchanges,
             self.queues,
-            self.handle.unwrap(),
+            self.handle,
         ).and_then(|publisher| Ok(Client { publisher }));
         Box::new(task)
     }
@@ -163,7 +159,7 @@ impl Client {
         job: &[u8],
         options: &BasicPublishOptions,
         properties: BasicProperties,
-    ) -> Box<Future<Item = (), Error = Error>> {
+    ) -> Box<Future<Item = (), Error = Error> + Send> {
         let task = self.publisher
             .send(exchange, routing_key, job, options, properties);
         Box::new(task)

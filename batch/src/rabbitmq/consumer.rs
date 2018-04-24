@@ -1,16 +1,17 @@
 use std::fmt;
 use std::io;
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 use futures::{self, future, Async, Future, Poll};
 use lapin::channel::{BasicConsumeOptions, Channel};
 use lapin::client::Client;
-use lapin_async::queue::Message;
-use lapin_async::types::FieldTable;
-use tokio_core::reactor::Handle;
+use lapin::message::Delivery as Message;
+use lapin::types::FieldTable;
+use tokio_reactor::Handle;
 
 use error::{Error, ErrorKind};
-use rabbitmq::common::{connect, declare_exchanges, declare_queues};
+use rabbitmq::common::{connect, declare_exchanges, declare_queues, HeartbeatHandle};
 use rabbitmq::delivery::Delivery;
 use rabbitmq::stream::Stream;
 use rabbitmq::types::{Exchange, Queue};
@@ -22,6 +23,7 @@ use rabbitmq::types::{Exchange, Queue};
 pub struct Consumer {
     channel: Channel<Stream>,
     stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
+    _heartbeat_handle: Arc<HeartbeatHandle>,
 }
 
 impl fmt::Debug for Consumer {
@@ -37,34 +39,35 @@ impl Consumer {
         exchanges_iter: E,
         queues_iter: Q,
         handle: Handle,
-    ) -> Box<Future<Item = Self, Error = Error>>
+    ) -> Box<Future<Item = Self, Error = Error> + Send>
     where
-        E: IntoIterator<Item = Exchange>,
-        Q: IntoIterator<Item = Queue>,
+        E: IntoIterator<Item = Exchange> + Send,
+        Q: IntoIterator<Item = Queue> + Send,
     {
         let exchanges = exchanges_iter.into_iter().collect::<Vec<_>>();
         let queues = queues_iter.into_iter().collect::<Vec<_>>();
         let queues_ = queues.clone();
 
         let task = connect(connection_url, handle)
-            .and_then(|client| {
+            .and_then(|(client, heartbeat_handle)| {
                 client
                     .create_channel()
+                    .map(|channel| (channel, heartbeat_handle))
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
             })
-            .and_then(move |channel| {
+            .and_then(move |(channel, heartbeat_handle)| {
                 let channel_ = channel.clone();
                 declare_exchanges(exchanges, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| channel)
+                    .map(|_| (channel, heartbeat_handle))
             })
-            .and_then(move |channel| {
+            .and_then(move |(channel, heartbeat_handle)| {
                 let channel_ = channel.clone();
                 declare_queues(queues_, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                    .map(|_| channel)
+                    .map(|_| (channel, heartbeat_handle))
             })
-            .and_then(|channel| {
+            .and_then(|(channel, heartbeat_handle)| {
                 let consumer_channel = channel.clone();
                 future::join_all(queues.into_iter().map(move |queue| {
                     consumer_channel
@@ -75,16 +78,20 @@ impl Consumer {
                             &FieldTable::new(),
                         )
                         .map_err(|e| ErrorKind::Rabbitmq(e).into())
-                })).join(future::ok(channel))
+                })).join(future::ok((channel, heartbeat_handle)))
             })
-            .map(move |(mut consumers, channel)| {
+            .map(move |(mut consumers, (channel, heartbeat_handle))| {
                 let initial: Box<
                     futures::Stream<Item = Message, Error = io::Error> + Send,
                 > = Box::new(consumers.pop().unwrap());
                 let stream = consumers.into_iter().fold(initial, |acc, consumer| {
                     Box::new(futures::Stream::select(acc, consumer))
                 });
-                Consumer { channel, stream }
+                Consumer {
+                    channel,
+                    stream,
+                    _heartbeat_handle: Arc::new(heartbeat_handle),
+                }
             });
         Box::new(task)
     }
@@ -92,7 +99,7 @@ impl Consumer {
     /// Acknowledge the successful execution of a `Task`.
     ///
     /// Returns a `Future` that completes once the `ack` is sent to the broker.
-    pub fn ack(&self, uid: u64) -> Box<Future<Item = (), Error = Error>> {
+    pub fn ack(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
         let task = self.channel
             .basic_ack(uid)
             .map_err(|e| ErrorKind::Rabbitmq(e).into());
@@ -102,7 +109,7 @@ impl Consumer {
     /// Reject the successful execution of a `Task`.
     ///
     /// Returns a `Future` that completes once the `reject` is sent to the broker.
-    pub fn reject(&self, uid: u64) -> Box<Future<Item = (), Error = Error>> {
+    pub fn reject(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
         let task = self.channel
             .basic_reject(uid, false)
             .map_err(|e| ErrorKind::Rabbitmq(e).into());
