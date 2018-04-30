@@ -215,6 +215,108 @@ impl ExchangeBuilder {
         &mut self.arguments
     }
 
+    /// Set the durability. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .durable(true);
+    ///
+    /// 
+    /// ```
+    pub fn durable(mut self, durable: bool) -> Self {
+        self.options.durable = durable;
+        self
+    }
+
+    /// Set the auto_delete option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .auto_delete(true);
+    ///
+    /// 
+    /// ```
+    pub fn auto_delete(mut self, auto_delete: bool) -> Self {
+        self.options.auto_delete = auto_delete;
+        self
+    }
+
+    /// Set the nowait option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .nowait(true);
+    ///
+    /// 
+    /// ```
+    pub fn nowait(mut self, nowait: bool) -> Self {
+        self.options.nowait = nowait;
+        self
+    }
+
+    /// Set the internal option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .internal(true);
+    ///
+    /// 
+    /// ```
+    pub fn internal(mut self, internal: bool) -> Self {
+        self.options.internal = internal;
+        self
+    }
+
+    /// Set the passive option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .passive(true);
+    ///
+    /// 
+    /// ```
+    pub fn passive(mut self, passive: bool) -> Self {
+        self.options.passive = passive;
+        self
+    }
+
+    /// Set the ticket option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::ExchangeBuilder;
+    ///
+    /// let mut builder = ExchangeBuilder::new("batch.example")
+    ///     .ticket(2);
+    ///
+    /// 
+    /// ```
+    pub fn ticket(mut self, ticket: u16) -> Self {
+        self.options.ticket = ticket;
+        self
+    }
+
     /// Build a new `Exchange` instance from this builder data.
     pub(crate) fn build(self) -> Exchange {
         Exchange {
@@ -406,6 +508,109 @@ impl QueueBuilder {
         });
         self
     }
+
+    /// Set the durability. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .durable(true);
+    /// 
+    /// 
+    /// ```
+    pub fn durable(mut self, durable: bool) -> Self {
+        self.options.durable = durable;
+        self
+    }
+
+    /// Set the auto_delete option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .auto_delete(true);
+    /// 
+    /// 
+    /// ```
+    pub fn auto_delete(mut self, auto_delete: bool) -> Self {
+        self.options.auto_delete = auto_delete;
+        self
+    }
+
+    /// Set the nowait option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .nowait(true);
+    /// 
+    /// 
+    /// ```
+    pub fn nowait(mut self, nowait: bool) -> Self {
+        self.options.nowait = nowait;
+        self
+    }
+
+    /// Set the exclusive option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .exclusive(true);
+    /// 
+    /// 
+    /// ```
+    pub fn exclusive(mut self, exclusive: bool) -> Self {
+        self.options.exclusive = exclusive;
+        self
+    }
+
+    /// Set the passive option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .passive(true);
+    /// 
+    /// 
+    /// ```
+    pub fn passive(mut self, passive: bool) -> Self {
+        self.options.passive = passive;
+        self
+    }
+
+    /// Set the ticket option. Chainable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::QueueBuilder;
+    ///
+    /// let mut builder = QueueBuilder::new("video-transcoding")
+    ///     .ticket(2);
+    /// 
+    /// 
+    /// ```
+    pub fn ticket(mut self, ticket: u16) -> Self {
+        self.options.ticket = ticket;
+        self
+    } 
+
 
     /// Enable task priorities on this queue.
     ///
