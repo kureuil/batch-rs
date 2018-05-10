@@ -17,4 +17,10 @@ message broker. This means that it might be complicated to integrate the
 by creating a dedicated binary which only goal is pulling tasks & spawning
 processes.
 
+By default, the `Worker` will process as many tasks in parallel as there are
+logical cores on the system. You can tweak this number when creating a
+`Worker` using the [`WorkerBuilder::parallelism`] method.
+
 See [`Worker` API documentation](https://docs.rs/batch/0.1/batch/struct.Worker.html).
+
+[`WorkerBuilder::parallelism`]: https://docs.rs/batch/0.1/batch/struct.WorkerBuilder.html#method.parallelism
