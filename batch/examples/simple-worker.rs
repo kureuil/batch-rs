@@ -9,6 +9,7 @@ extern crate tokio;
 
 use batch::{exchange, queue, Perform, WorkerBuilder};
 use futures::Future;
+use std::{thread, time};
 
 #[derive(Serialize, Deserialize, Task)]
 #[task_name = "batch::SayHello"]
@@ -22,6 +23,9 @@ impl Perform for SayHello {
 
     fn perform(&self, _ctx: Self::Context) {
         println!("Hello {}", self.to);
+        let second = time::Duration::from_secs(1);
+        thread::sleep(second);
+        println!("Goodbye {}", self.to);
     }
 }
 

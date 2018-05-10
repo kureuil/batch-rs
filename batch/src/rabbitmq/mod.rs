@@ -5,7 +5,7 @@ mod publisher;
 mod stream;
 mod types;
 
-pub use self::consumer::Consumer;
+pub use self::consumer::{Consumer, ConsumerHandle};
 pub use self::delivery::Delivery;
 pub use self::publisher::Publisher;
 pub use self::types::{exchange, queue, Exchange, ExchangeBuilder, Queue, QueueBuilder};
@@ -73,7 +73,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     info!("Published all messages");
-                    Consumer::new_with_handle(conn_url, exchanges, queues, handle)
+                    Consumer::new_with_handle(conn_url, exchanges, queues, 1, handle)
                 })
                 .and_then(move |consumer| {
                     info!("Starting recursive loop fn");
@@ -88,7 +88,8 @@ mod tests {
                                     let tail = order;
                                     let delivery = next.unwrap();
                                     assert_eq!(delivery.task(), head);
-                                    consumer.ack(delivery.tag()).map(|_| (consumer, tail))
+                                    let handle = consumer.handle();
+                                    handle.ack(delivery.tag()).map(|_| (consumer, tail))
                                 })
                                 .and_then(|(consumer, order)| {
                                     info!("End of iteration:");

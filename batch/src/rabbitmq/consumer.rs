@@ -4,7 +4,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use futures::{self, future, Async, Future, Poll};
-use lapin::channel::{BasicConsumeOptions, Channel};
+use lapin::channel::{BasicConsumeOptions, BasicQosOptions, Channel};
 use lapin::client::Client;
 use lapin::message::Delivery as Message;
 use lapin::types::FieldTable;
@@ -23,7 +23,7 @@ use rabbitmq::types::{Exchange, Queue};
 pub struct Consumer {
     channel: Channel<Stream>,
     stream: Box<futures::Stream<Item = Message, Error = io::Error> + Send>,
-    _heartbeat_handle: Arc<HeartbeatHandle>,
+    heartbeat_handle: Arc<HeartbeatHandle>,
 }
 
 impl fmt::Debug for Consumer {
@@ -38,6 +38,7 @@ impl Consumer {
         connection_url: &str,
         exchanges_iter: E,
         queues_iter: Q,
+        prefetch_count: u16,
         handle: Handle,
     ) -> Box<Future<Item = Self, Error = Error> + Send>
     where
@@ -50,26 +51,43 @@ impl Consumer {
 
         let task = connect(connection_url, handle)
             .and_then(|(client, heartbeat_handle)| {
+                trace!("Creating consumer's RabbitMQ channel");
                 client
                     .create_channel()
                     .map(|channel| (channel, heartbeat_handle))
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
             })
             .and_then(move |(channel, heartbeat_handle)| {
+                trace!("Declaring consumer's RabbitMQ exchanges");
                 let channel_ = channel.clone();
                 declare_exchanges(exchanges, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
                     .map(|_| (channel, heartbeat_handle))
             })
             .and_then(move |(channel, heartbeat_handle)| {
+                trace!("Declaring consumer's RabbitMQ channels");
                 let channel_ = channel.clone();
                 declare_queues(queues_, channel_)
                     .map_err(|e| ErrorKind::Rabbitmq(e).into())
                     .map(|_| (channel, heartbeat_handle))
             })
+            .and_then(move |(channel, heartbeat_handle)| {
+                channel
+                    .basic_qos(&BasicQosOptions {
+                        prefetch_count,
+                        ..Default::default()
+                    })
+                    .map_err(|e| ErrorKind::Rabbitmq(e).into())
+                    .map(|_| (channel, heartbeat_handle))
+            })
             .and_then(|(channel, heartbeat_handle)| {
+                trace!("Creating consumer's inner stream");
                 let consumer_channel = channel.clone();
                 future::join_all(queues.into_iter().map(move |queue| {
+                    trace!(
+                        "Creating RabbitMQ consumer batch-rs-consumer-{}",
+                        queue.name()
+                    );
                     consumer_channel
                         .basic_consume(
                             queue.name(),
@@ -90,30 +108,15 @@ impl Consumer {
                 Consumer {
                     channel,
                     stream,
-                    _heartbeat_handle: Arc::new(heartbeat_handle),
+                    heartbeat_handle: Arc::new(heartbeat_handle),
                 }
             });
         Box::new(task)
     }
 
-    /// Acknowledge the successful execution of a `Task`.
-    ///
-    /// Returns a `Future` that completes once the `ack` is sent to the broker.
-    pub fn ack(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
-        let task = self.channel
-            .basic_ack(uid)
-            .map_err(|e| ErrorKind::Rabbitmq(e).into());
-        Box::new(task)
-    }
-
-    /// Reject the successful execution of a `Task`.
-    ///
-    /// Returns a `Future` that completes once the `reject` is sent to the broker.
-    pub fn reject(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
-        let task = self.channel
-            .basic_reject(uid, false)
-            .map_err(|e| ErrorKind::Rabbitmq(e).into());
-        Box::new(task)
+    /// Creates a new `ConsumerHandle` instance.
+    pub fn handle(&self) -> ConsumerHandle {
+        ConsumerHandle::new(self.channel.clone(), Arc::clone(&self.heartbeat_handle))
     }
 }
 
@@ -135,5 +138,36 @@ impl futures::Stream for Consumer {
             None => return Ok(Async::Ready(None)),
         };
         Ok(Async::Ready(Some(Delivery(message))))
+    }
+}
+
+pub struct ConsumerHandle(Channel<Stream>, Arc<HeartbeatHandle>);
+
+impl ConsumerHandle {
+    /// Create a new `ConsumerHandle`.
+    pub fn new(channel: Channel<Stream>, heartbeat_handle: Arc<HeartbeatHandle>) -> Self {
+        ConsumerHandle(channel, heartbeat_handle)
+    }
+
+    /// Acknowledge the successful execution of a `Task`.
+    ///
+    /// Returns a `Future` that completes once the `ack` is sent to the broker.
+    pub fn ack(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
+        trace!("Acking message {}", uid);
+        let task = self.0
+            .basic_ack(uid)
+            .map_err(|e| ErrorKind::Rabbitmq(e).into());
+        Box::new(task)
+    }
+
+    /// Reject the successful execution of a `Task`.
+    ///
+    /// Returns a `Future` that completes once the `reject` is sent to the broker.
+    pub fn reject(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
+        trace!("Nacking message {}", uid);
+        let task = self.0
+            .basic_reject(uid, false)
+            .map_err(|e| ErrorKind::Rabbitmq(e).into());
+        Box::new(task)
     }
 }

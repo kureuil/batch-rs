@@ -65,6 +65,7 @@ extern crate lapin_futures as lapin;
 #[macro_use]
 extern crate log;
 extern crate native_tls;
+extern crate num_cpus;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
