@@ -6,6 +6,11 @@ cache: cargo
 services:
   - rabbitmq
 
+branches:
+  only:
+  - master
+  - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+
 matrix:
   fast_finish: true
   allow_failures:
