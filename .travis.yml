@@ -25,12 +25,6 @@ matrix:
   - rust: beta
   - rust: nightly
 
-before_install:
-  - sudo apt-get install -qq -y dnsmasq
-  - echo "listen-address=127.0.0.1" | sudo tee -a /etc/dnsmasq.conf > /dev/null
-  - echo "user=root" | sudo tee -a /etc/dnsmasq.conf > /dev/null
-  - sudo service dnsmasq restart
-
 script:
   - cargo test --all
 
