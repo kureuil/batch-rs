@@ -1,10 +1,28 @@
 # Batch
 
-A distributed task queue library written in Rust using RabbitMQ as a message broker.
+[![Crates.io][crates-badge]][crates-url]
+[![API Docs][docs-badge]][docs-url]
+[![Travis Build Status][travis-badge]][travis-url]
+[![Appveyor Build status][appveyor-badge]][appveyor-url]
 
-This library allows you to send a task to a RabbitMQ broker, so that a worker will be able
-to pull it and execute the associated handler. It leverages the `futures` and `tokio-core`
-crates to provide asynchronous I/O operations.
+[crates-badge]: https://img.shields.io/crates/v/batch.svg
+[crates-url]: https://crates.io/crates/batch
+[docs-badge]: https://docs.rs/batch/badge.svg?version=0.1
+[docs-url]: https://docs.rs/batch/0.1
+[travis-badge]: https://travis-ci.org/kureuil/batch-rs.svg?branch=master
+[travis-url]: https://travis-ci.org/kureuil/batch-rs
+[appveyor-badge]: https://ci.appveyor.com/api/projects/status/p8390hfhs1ndmrv9/branch/master?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/kureuil/batch-rs/branch/master
+
+A distributed task queue library written in Rust.
+
+Batch allows you to defer work to worker processes, by sending messages to a RabbitMQ broker.
+It is a type-safe library that favors safety over performance in order to minimize risk and
+avoid mistakes. It leverages the [`futures`] & [`tokio`] crates to provide asynchronous
+operations to the user.
+
+[`futures`]: https://crates.io/crates/futures
+[`tokio`]: https://crates.io/crates/tokio
 
 ## Installation
 
@@ -24,7 +42,10 @@ Then add this to your crate root:
 extern crate batch;
 ```
 
-Examples are available on [GitHub](https://github.com/kureuil/batch-rs/tree/master/batch/examples) or you can continue and read the [Getting Started](https://kureuil.github.io/batch-rs/getting-started.html) guide.
+Examples are available on [GitHub][gh-examples] or you can continue and read the [Getting Started][getting-started] guide.
+
+[gh-examples]: https://github.com/kureuil/batch-rs/tree/master/batch/examples
+[getting-started]: https://kureuil.github.io/batch-rs/getting-started.html
 
 ## Features
 
