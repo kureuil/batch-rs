@@ -33,3 +33,8 @@ cache:
   # Note: this must match the $rabbitmq_installer_path value in
   # .\ci\install.ps1
   - "%HOMEDRIVE%%HOMEPATH%\rabbitmq-server-3.7.4.exe"
+
+branches:
+  only:
+    - master
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
