@@ -18,7 +18,7 @@ amq-protocol = "0.19"
 bytes = "0.4"
 failure = "0.1.1"
 futures = "0.1.17"
-lapin-futures = { git = "https://github.com/kureuil/lapin.git", rev = "afafa7d9e5c88a397f1cc3ef7a5260baa9245ce8" }
+lapin-futures = { git = "https://github.com/kureuil/lapin.git", rev = "85cf30b27db8bddb701d7314adf483a0dc846d37" }
 log = "0.4"
 native-tls = "0.1"
 num_cpus = "1.0"
