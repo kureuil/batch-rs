@@ -49,10 +49,10 @@ before_install:
 - |
   if [ "$TRAVIS_OS_NAME" = linux ]
   then
-    mv /opt/jdk_switcher/jdk_switcher.sh /tmp
-    apt-get install rabbitmq-server
-    mv /tmp/jdk_switcher.sh /opt/jdk_switcher/
-    service rabbitmq-server start
+    sudo mv /opt/jdk_switcher/jdk_switcher.sh /tmp
+    sudo apt-get install rabbitmq-server
+    sudo mv /tmp/jdk_switcher.sh /opt/jdk_switcher/
+    sudo service rabbitmq-server start
   fi
 
 script:
