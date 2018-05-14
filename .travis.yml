@@ -3,13 +3,17 @@ dist: trusty
 sudo: required
 cache: cargo
 
-services:
-- rabbitmq
-
 branches:
   only:
   - master
   - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+
+addons:
+  apt:
+    sources:
+    - rabbitmq-trusty
+    packages:
+    - rabbitmq-server
 
 os:
 - linux
