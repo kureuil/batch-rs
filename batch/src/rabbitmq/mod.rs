@@ -71,19 +71,33 @@ mod tests {
                     Consumer::new_with_handle(conn_url, exchanges, queues, 1, handle)
                 })
                 .and_then(move |consumer| {
-                    let handle = consumer.handle();
-                    consumer
-                        .take(5)
-                        .map(move |delivery| {
-                            let ack = handle.ack(delivery.tag()).map(|_| ()).map_err(|_| ());
-                            ::tokio::spawn(ack);
-                            delivery.task().to_string()
-                        })
-                        .collect()
-                })
-                .and_then(move |received| {
-                    assert_eq!(expected, received);
-                    Ok(())
+                    info!("Starting recursive loop fn");
+                    future::loop_fn(
+                        (consumer.into_future(), expected.clone()),
+                        |(f, mut order)| {
+                            info!("Iterating over consumer deliveries");
+                            info!(" -> {:?}", order);
+                            f.map_err(|(e, _)| e)
+                                .and_then(move |(next, consumer)| {
+                                    let head = order.pop_front().unwrap();
+                                    let tail = order;
+                                    let delivery = next.unwrap();
+                                    assert_eq!(delivery.task(), head);
+                                    let handle = consumer.handle();
+                                    handle.ack(delivery.tag()).map(|_| (consumer, tail))
+                                })
+                                .and_then(|(consumer, order)| {
+                                    info!("End of iteration:");
+                                    info!(" -> {:?}", order);
+                                    info!(" -> {:?}", order.is_empty());
+                                    if order.is_empty() {
+                                        Ok(future::Loop::Break(()))
+                                    } else {
+                                        Ok(future::Loop::Continue((consumer.into_future(), order)))
+                                    }
+                                })
+                        },
+                    )
                 })
                 .map_err(|e| panic!("Couldn't complete test: {}", e));
         ::tokio::run(task);
@@ -150,19 +164,33 @@ mod tests {
                     Consumer::new_with_handle(conn_url, exchanges, queues, 1, handle)
                 })
                 .and_then(move |consumer| {
-                    let handle = consumer.handle();
-                    consumer
-                        .take(5)
-                        .map(move |delivery| {
-                            let ack = handle.ack(delivery.tag()).map(|_| ()).map_err(|_| ());
-                            ::tokio::spawn(ack);
-                            delivery.task().to_string()
-                        })
-                        .collect()
-                })
-                .and_then(move |received| {
-                    assert_eq!(expected, received);
-                    Ok(())
+                    info!("Starting recursive loop fn");
+                    future::loop_fn(
+                        (consumer.into_future(), expected.clone()),
+                        |(f, mut order)| {
+                            info!("Iterating over consumer deliveries");
+                            info!(" -> {:?}", order);
+                            f.map_err(|(e, _)| e)
+                                .and_then(move |(next, consumer)| {
+                                    let head = order.pop_front().unwrap();
+                                    let tail = order;
+                                    let delivery = next.unwrap();
+                                    assert_eq!(delivery.task(), head);
+                                    let handle = consumer.handle();
+                                    handle.ack(delivery.tag()).map(|_| (consumer, tail))
+                                })
+                                .and_then(|(consumer, order)| {
+                                    info!("End of iteration:");
+                                    info!(" -> {:?}", order);
+                                    info!(" -> {:?}", order.is_empty());
+                                    if order.is_empty() {
+                                        Ok(future::Loop::Break(()))
+                                    } else {
+                                        Ok(future::Loop::Continue((consumer.into_future(), order)))
+                                    }
+                                })
+                        },
+                    )
                 })
                 .map_err(|e| panic!("Couldn't complete test: {}", e));
         ::tokio::run(task);
