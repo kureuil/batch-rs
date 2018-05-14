@@ -52,6 +52,7 @@ before_install:
     mv /opt/jdk_switcher/jdk_switcher.sh /tmp
     apt-get install rabbitmq-server
     mv /tmp/jdk_switcher.sh /opt/jdk_switcher/
+    service rabbitmq-server start
   fi
 
 script:
