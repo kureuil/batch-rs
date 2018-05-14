@@ -40,11 +40,7 @@ mod tests {
 
         let conn_url = "amqp://localhost/%2f";
         let exchanges = vec![exchange(ex).build()];
-        let queues = vec![
-            queue("tests.default")
-                .bind(ex, rk)
-                .build(),
-        ];
+        let queues = vec![queue("tests.default").bind(ex, rk).build()];
         let handle = Handle::current();
         let task =
             Publisher::new_with_handle(conn_url, exchanges.clone(), queues.clone(), handle.clone())
@@ -79,9 +75,7 @@ mod tests {
                     consumer
                         .take(5)
                         .map(move |delivery| {
-                            let ack = handle.ack(delivery.tag())
-                                .map(|_| ())
-                                .map_err(|_| ());
+                            let ack = handle.ack(delivery.tag()).map(|_| ()).map_err(|_| ());
                             ::tokio::spawn(ack);
                             delivery.task().to_string()
                         })
@@ -160,9 +154,7 @@ mod tests {
                     consumer
                         .take(5)
                         .map(move |delivery| {
-                            let ack = handle.ack(delivery.tag())
-                                .map(|_| ())
-                                .map_err(|_| ());
+                            let ack = handle.ack(delivery.tag()).map(|_| ()).map_err(|_| ());
                             ::tokio::spawn(ack);
                             delivery.task().to_string()
                         })
