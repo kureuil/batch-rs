@@ -17,7 +17,6 @@ addons:
       key_url: https://dl.bintray.com/rabbitmq/Keys/rabbitmq-release-signing-key.asc
     packages:
     - esl-erlang
-    - rabbitmq-server
 
 os:
 - linux
@@ -46,6 +45,13 @@ before_install:
     brew update
     brew install rabbitmq
     brew services run rabbitmq
+  fi
+- |
+  if [ "$TRAVIS_OS_NAME" = linux ]
+  then
+    mv /opt/jdk_switcher/jdk_switcher.sh /tmp
+    apt-get install rabbitmq-server
+    mv /tmp/jdk_switcher.sh /opt/jdk_switcher/
   fi
 
 script:
