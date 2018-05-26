@@ -215,7 +215,7 @@ impl ExchangeBuilder {
         &mut self.arguments
     }
 
-    /// Set the durability. Chainable.
+    /// Set the durable option. Chainable.
     ///
     /// # Example
     ///
@@ -224,8 +224,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .durable(true);
-    ///
-    /// 
     /// ```
     pub fn durable(mut self, durable: bool) -> Self {
         self.options.durable = durable;
@@ -241,8 +239,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .auto_delete(true);
-    ///
-    /// 
     /// ```
     pub fn auto_delete(mut self, auto_delete: bool) -> Self {
         self.options.auto_delete = auto_delete;
@@ -258,8 +254,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .nowait(true);
-    ///
-    /// 
     /// ```
     pub fn nowait(mut self, nowait: bool) -> Self {
         self.options.nowait = nowait;
@@ -275,8 +269,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .internal(true);
-    ///
-    /// 
     /// ```
     pub fn internal(mut self, internal: bool) -> Self {
         self.options.internal = internal;
@@ -292,8 +284,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .passive(true);
-    ///
-    /// 
     /// ```
     pub fn passive(mut self, passive: bool) -> Self {
         self.options.passive = passive;
@@ -309,8 +299,6 @@ impl ExchangeBuilder {
     ///
     /// let mut builder = ExchangeBuilder::new("batch.example")
     ///     .ticket(2);
-    ///
-    /// 
     /// ```
     pub fn ticket(mut self, ticket: u16) -> Self {
         self.options.ticket = ticket;
@@ -518,8 +506,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .durable(true);
-    /// 
-    /// 
     /// ```
     pub fn durable(mut self, durable: bool) -> Self {
         self.options.durable = durable;
@@ -535,8 +521,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .auto_delete(true);
-    /// 
-    /// 
     /// ```
     pub fn auto_delete(mut self, auto_delete: bool) -> Self {
         self.options.auto_delete = auto_delete;
@@ -552,8 +536,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .nowait(true);
-    /// 
-    /// 
     /// ```
     pub fn nowait(mut self, nowait: bool) -> Self {
         self.options.nowait = nowait;
@@ -569,8 +551,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .exclusive(true);
-    /// 
-    /// 
     /// ```
     pub fn exclusive(mut self, exclusive: bool) -> Self {
         self.options.exclusive = exclusive;
@@ -586,8 +566,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .passive(true);
-    /// 
-    /// 
     /// ```
     pub fn passive(mut self, passive: bool) -> Self {
         self.options.passive = passive;
@@ -603,8 +581,6 @@ impl QueueBuilder {
     ///
     /// let mut builder = QueueBuilder::new("video-transcoding")
     ///     .ticket(2);
-    /// 
-    /// 
     /// ```
     pub fn ticket(mut self, ticket: u16) -> Self {
         self.options.ticket = ticket;
