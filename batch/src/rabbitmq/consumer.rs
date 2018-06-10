@@ -74,7 +74,7 @@ impl Consumer {
             })
             .and_then(move |(channel, heartbeat_handle)| {
                 channel
-                    .basic_qos(&BasicQosOptions {
+                    .basic_qos(BasicQosOptions {
                         prefetch_count,
                         ..Default::default()
                     })
@@ -93,8 +93,8 @@ impl Consumer {
                         .basic_consume(
                             &LapinQueue::new(queue.name().into()),
                             &format!("batch-rs-consumer-{}", queue.name()),
-                            &BasicConsumeOptions::default(),
-                            &FieldTable::new(),
+                            BasicConsumeOptions::default(),
+                            FieldTable::new(),
                         )
                         .map_err(|e| ErrorKind::Rabbitmq(e).into())
                 })).join(future::ok((channel, heartbeat_handle)))

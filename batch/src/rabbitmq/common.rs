@@ -33,7 +33,7 @@ where
                 trace!("Declaring queue {:?}", queue.name());
                 let binding_channel = channel.clone();
                 let task = channel
-                    .queue_declare(queue.name(), queue.options(), queue.arguments())
+                    .queue_declare(queue.name(), queue.options().clone(), queue.arguments().clone())
                     .and_then(move |_| {
                         future::join_all(queue.bindings().clone().into_iter().map(move |b| {
                             trace!(
@@ -46,8 +46,8 @@ where
                                 queue.name(),
                                 b.exchange(),
                                 b.routing_key(),
-                                &QueueBindOptions::default(),
-                                &FieldTable::new(),
+                                QueueBindOptions::default(),
+                                FieldTable::new(),
                             )
                         }))
                     })
@@ -84,8 +84,8 @@ where
                     .exchange_declare(
                         exchange.name(),
                         exchange.kind(),
-                        exchange.options(),
-                        exchange.arguments(),
+                        exchange.options().clone(),
+                        exchange.arguments().clone(),
                     )
                     .and_then(move |_| {
                         future::join_all(exchange.bindings().clone().into_iter().map(move |b| {
@@ -100,8 +100,8 @@ where
                                 b.exchange(),
                                 exchange.name(),
                                 b.routing_key(),
-                                &ExchangeBindOptions::default(),
-                                &FieldTable::new(),
+                                ExchangeBindOptions::default(),
+                                FieldTable::new(),
                             )
                         }))
                     })
@@ -172,7 +172,7 @@ pub fn connect(
                 frame_max: uri.query.frame_max.unwrap_or(0),
                 heartbeat: uri.query.heartbeat.unwrap_or(0),
             };
-            Client::connect(stream, &opts)
+            Client::connect(stream, opts)
                 .map_err(|e| ErrorKind::Rabbitmq(e).into())
                 .map(move |(client, mut heartbeat)| {
                     let heartbeat_handle = HeartbeatHandle(heartbeat.handle());
