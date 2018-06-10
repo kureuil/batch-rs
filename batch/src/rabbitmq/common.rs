@@ -33,7 +33,11 @@ where
                 trace!("Declaring queue {:?}", queue.name());
                 let binding_channel = channel.clone();
                 let task = channel
-                    .queue_declare(queue.name(), queue.options().clone(), queue.arguments().clone())
+                    .queue_declare(
+                        queue.name(),
+                        queue.options().clone(),
+                        queue.arguments().clone(),
+                    )
                     .and_then(move |_| {
                         future::join_all(queue.bindings().clone().into_iter().map(move |b| {
                             trace!(

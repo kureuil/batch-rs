@@ -84,7 +84,13 @@ impl Publisher {
         properties: BasicProperties,
     ) -> Box<Future<Item = (), Error = Error> + Send> {
         let task = self.channel
-            .basic_publish(exchange, routing_key, serialized, options.clone(), properties)
+            .basic_publish(
+                exchange,
+                routing_key,
+                serialized,
+                options.clone(),
+                properties,
+            )
             .and_then(move |_| future::ok(()))
             .map_err(|e| ErrorKind::Rabbitmq(e).into());
         Box::new(task)
