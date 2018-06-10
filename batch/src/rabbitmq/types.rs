@@ -585,8 +585,7 @@ impl QueueBuilder {
     pub fn ticket(mut self, ticket: u16) -> Self {
         self.options.ticket = ticket;
         self
-    } 
-
+    }
 
     /// Enable task priorities on this queue.
     ///

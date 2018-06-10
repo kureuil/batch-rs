@@ -7,6 +7,7 @@ use futures::{self, future, Async, Future, Poll};
 use lapin::channel::{BasicConsumeOptions, BasicQosOptions, Channel};
 use lapin::client::Client;
 use lapin::message::Delivery as Message;
+use lapin::queue::Queue as LapinQueue;
 use lapin::types::FieldTable;
 use tokio_reactor::Handle;
 
@@ -90,7 +91,7 @@ impl Consumer {
                     );
                     consumer_channel
                         .basic_consume(
-                            queue.name(),
+                            &LapinQueue::new(queue.name().into()),
                             &format!("batch-rs-consumer-{}", queue.name()),
                             &BasicConsumeOptions::default(),
                             &FieldTable::new(),
