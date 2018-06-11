@@ -26,7 +26,8 @@ install:
 build: false
 
 test_script:
-  - cargo test
+  - cargo build --all
+  - cargo test --all
 
 cache:
   - C:\Users\appveyor\.cargo\registry -> Cargo.lock
