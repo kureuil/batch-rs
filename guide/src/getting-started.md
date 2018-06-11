@@ -23,10 +23,10 @@ fn main() {
 }
 ```
 
-Now, that we're connected to our broker, we'll create our first task. A task is
+Now, that we're connected to our broker, we'll create our first job. A job is
 a work of unit that you want to asynchronously, becuse handling synchronously is
 not possible or wouldn't be ideal (e.g sending a mail from a web API). The
-easiest of creating a task, is by declaring a structure, and derive `Task` on
+easiest of creating a job, is by declaring a structure, and derive `Job` on
 it:
 
 ```rust
@@ -40,8 +40,8 @@ extern crate tokio_core;
 use batch::ClientBuilder;
 use tokio_core::reactor::Core;
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -59,14 +59,14 @@ fn main() {
 }
 ```
 
-> **Note**: you can see that in addition to `Task`, we're also deriving
+> **Note**: you can see that in addition to `Job`, we're also deriving
 `serde`'s `Serialize` & `Deserialize` traits. This is necessary in order to
-safely send task over the network.
+safely send job over the network.
 
-> **Note**: When deriving `Task` we added the (mandatory) `task_routing_key`
+> **Note**: When deriving `Job` we added the (mandatory) `job_routing_key`
 attribute, it is used by RabbitMQ to deliver your message to the right worker.
 
-Now that we have our task, we can send it to our message broker:
+Now that we have our job, we can send it to our message broker:
 
 ```rust
 #[macro_use]
@@ -81,8 +81,8 @@ use batch::{job, ClientBuilder};
 use futures::Future;
 use tokio_core::reactor::Core;
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -97,19 +97,17 @@ fn main() {
         .build();
 
     let send = client.and_then(|client| {
-        let task = SayHello {
-            to: "Ferris".into()
-        };
+        let to = "Ferris".to_string();
 
-        job(task).send(&client)
+        job(SayHello { to }).send(&client)
     });
 
     core.run(send).unwrap();
 }
 ```
 
-Now that our task has been published to our broker, we'll need to fetch it and
-assign a function to this task. To do this, we'll create a new program, the
+Now that our job has been published to our broker, we'll need to fetch it and
+assign a function to this job. To do this, we'll create a new program, the
 *worker*:
 
 ```rust
@@ -123,8 +121,8 @@ extern crate tokio_core;
 use batch::{queue, WorkerBuilder};
 use tokio_core::reactor::Core;
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -145,7 +143,7 @@ fn main() {
 }
 ```
 
-In order to register our task on the worker, we'll need to make it executable by
+In order to register our job on the worker, we'll need to make it executable by
 implementing the `Perform` trait:
 
 ```rust
@@ -159,8 +157,8 @@ extern crate tokio_core;
 use batch::{queue, Perform, WorkerBuilder};
 use tokio_core::reactor::Core;
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -182,7 +180,7 @@ fn main() {
         .connection_url("amqp://localhost/%2f")
         .queues(queues)
         .handle(handle)
-        .task::<SayHello>()
+        .job::<SayHello>()
         .build()
         .unwrap();
 
@@ -192,4 +190,3 @@ fn main() {
 
 We can now run our *worker* program and see the `Hello Ferris!` message
 displayed in the terminal.
-

@@ -12,9 +12,9 @@ use batch::{exchange, queue, Perform, WorkerBuilder};
 use futures::Future;
 use std::{thread, time};
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_name = "batch::SayHello"]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_name = "batch::SayHello"]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -39,7 +39,7 @@ fn main() {
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
         .queues(queues)
-        .task::<SayHello>()
+        .job::<SayHello>()
         .build()
         .unwrap();
     tokio::run(

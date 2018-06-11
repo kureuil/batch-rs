@@ -1,7 +1,7 @@
 //! This crate provides a Batch's derive macro.
 //!
 //! ```rust,ignore
-//! #[derive(Task)]
+//! #[derive(Job)]
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/batch-codegen/0.1.0")]
@@ -18,42 +18,39 @@ use proc_macro::TokenStream as StdTokenStream;
 use proc_macro2::{Span, TokenStream};
 use syn::{DeriveInput, Ident, Lit, Meta};
 
-/// Macros 1.1 implementation of `#[derive(Task)]`
+/// Macros 1.1 implementation of `#[derive(Job)]`
 ///
 /// This macro supports several attributes:
 ///
-/// * `task_name`: a unique ID for the task.
-///   e.g: `#[task_name = "batch-rs:send-confirmation-email"]`
+/// * `job_name`: a unique ID for the job.
+///   e.g: `#[job_name = "batch-rs:send-confirmation-email"]`
 ///   **default value**: The derived struct name
-/// * `task_exchange`: the exchange this task will be published to.
-///   e.g: `#[task_exchange = "batch.example"]`
+/// * `job_exchange`: the exchange this job will be published to.
+///   e.g: `#[job_exchange = "batch.example"]`
 ///   **default value**: `""`
-/// * `task_routing_key`: the routing key associated to the task.
-///   e.g: `#[task_routing_key = "mailer"]`
-/// * `task_timeout`: Number of seconds available for the task to execute. If the time limit is
-///   exceeded, the task's process is killed and the task is marked as failed.
-///   e.g: `#[task_timeout = "120"]`
+/// * `job_routing_key`: the routing key associated to the job.
+///   e.g: `#[job_routing_key = "mailer"]`
+/// * `job_timeout`: Number of seconds available for the job to execute. If the time limit is
+///   exceeded, the job's process is killed and the job is marked as failed.
+///   e.g: `#[job_timeout = "120"]`
 ///   **default value**: `900` (15 minutes)
-/// * `task_retries`: Number of times the task should be retried in case of error.
-///   e.g: `#[task_retries = "5"]`
+/// * `job_retries`: Number of times the job should be retried in case of error.
+///   e.g: `#[job_retries = "5"]`
 ///   **default value**: `2`
-/// * `task_priority`: The priority associated to the task
-///   e.g: `#[task_priority = "critical"]`
+/// * `job_priority`: The priority associated to the job
+///   e.g: `#[job_priority = "critical"]`
 ///   **default value**: `"normal"`
 #[proc_macro_derive(
-    Task,
-    attributes(
-        task_name, task_exchange, task_routing_key, task_timeout, task_retries, task_priority
-    )
+    Job, attributes(job_name, job_exchange, job_routing_key, job_timeout, job_retries, job_priority)
 )]
 pub fn task_derive(input: StdTokenStream) -> StdTokenStream {
     let input: DeriveInput = syn::parse(input.into()).unwrap();
-    let task_name = get_derive_name_attr(&input);
-    let task_exchange = get_derive_exchange_attr(&input);
-    let task_routing_key = get_derive_routing_key_attr(&input);
-    let task_timeout = get_derive_timeout_attr(&input);
-    let task_retries = get_derive_retries_attr(&input);
-    let task_priority = get_derive_priority_attr(&input);
+    let job_name = get_derive_name_attr(&input);
+    let job_exchange = get_derive_exchange_attr(&input);
+    let job_routing_key = get_derive_routing_key_attr(&input);
+    let job_timeout = get_derive_timeout_attr(&input);
+    let job_retries = get_derive_retries_attr(&input);
+    let job_priority = get_derive_priority_attr(&input);
     let name = &input.ident;
     let impl_block_name = gen_derive_impl_block_name(name.to_string());
 
@@ -68,32 +65,32 @@ pub fn task_derive(input: StdTokenStream) -> StdTokenStream {
             use ::std::time::Duration;
 
             lazy_static! {
-                static ref _BATCH_JOB_NAME: String = #task_name.replace("::", ".");
+                static ref _BATCH_JOB_NAME: String = #job_name.replace("::", ".");
             }
 
-            impl _batch::Task for #name {
+            impl _batch::Job for #name {
                 fn name() -> &'static str {
                     _BATCH_JOB_NAME.as_ref()
                 }
 
                 fn exchange() -> &'static str {
-                    #task_exchange
+                    #job_exchange
                 }
 
                 fn routing_key() -> &'static str {
-                    #task_routing_key
+                    #job_routing_key
                 }
 
                 fn timeout() -> Option<Duration> {
-                    #task_timeout
+                    #job_timeout
                 }
 
                 fn retries() -> u32 {
-                    #task_retries
+                    #job_retries
                 }
 
                 fn priority() -> _batch::Priority {
-                    #task_priority
+                    #job_priority
                 }
             }
         };
@@ -102,7 +99,7 @@ pub fn task_derive(input: StdTokenStream) -> StdTokenStream {
 }
 
 fn get_derive_name_attr(input: &DeriveInput) -> TokenStream {
-    if let Some(raw) = get_str_attr_by_name(&input.attrs, "task_name") {
+    if let Some(raw) = get_str_attr_by_name(&input.attrs, "job_name") {
         quote! { #raw }
     } else {
         let name = input.ident.to_string();
@@ -114,7 +111,7 @@ fn get_derive_name_attr(input: &DeriveInput) -> TokenStream {
 
 fn get_derive_exchange_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_exchange");
+        let raw = get_str_attr_by_name(&input.attrs, "job_exchange");
         raw.unwrap_or_else(|| "".to_string())
     };
     quote! { #attr }
@@ -122,15 +119,15 @@ fn get_derive_exchange_attr(input: &DeriveInput) -> TokenStream {
 
 fn get_derive_routing_key_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_routing_key");
-        raw.expect("task_routing_key is a mandatory attribute when deriving Task")
+        let raw = get_str_attr_by_name(&input.attrs, "job_routing_key");
+        raw.expect("job_routing_key is a mandatory attribute when deriving Job")
     };
     quote! { #attr }
 }
 
 fn get_derive_timeout_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_timeout");
+        let raw = get_str_attr_by_name(&input.attrs, "job_timeout");
         raw.unwrap_or_else(|| "900".to_string())
     };
     let timeout = attr.parse::<u64>()
@@ -142,7 +139,7 @@ fn get_derive_timeout_attr(input: &DeriveInput) -> TokenStream {
 
 fn get_derive_retries_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_retries");
+        let raw = get_str_attr_by_name(&input.attrs, "job_retries");
         raw.unwrap_or_else(|| "2".to_string())
     };
     let retries = attr.parse::<u32>()
@@ -154,7 +151,7 @@ fn get_derive_retries_attr(input: &DeriveInput) -> TokenStream {
 
 fn get_derive_priority_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
-        let raw = get_str_attr_by_name(&input.attrs, "task_priority");
+        let raw = get_str_attr_by_name(&input.attrs, "job_priority");
         raw.unwrap_or_else(|| "normal".to_string())
     };
     match attr.to_lowercase().as_ref() {

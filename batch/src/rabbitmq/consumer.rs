@@ -150,7 +150,7 @@ impl ConsumerHandle {
         ConsumerHandle(channel, heartbeat_handle)
     }
 
-    /// Acknowledge the successful execution of a `Task`.
+    /// Acknowledge the successful execution of a `Job`.
     ///
     /// Returns a `Future` that completes once the `ack` is sent to the broker.
     pub fn ack(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {
@@ -161,7 +161,7 @@ impl ConsumerHandle {
         Box::new(task)
     }
 
-    /// Reject the successful execution of a `Task`.
+    /// Reject the successful execution of a `Job`.
     ///
     /// Returns a `Future` that completes once the `reject` is sent to the broker.
     pub fn reject(&self, uid: u64) -> Box<Future<Item = (), Error = Error> + Send> {

@@ -13,7 +13,7 @@ pub use self::types::{exchange, queue, Exchange, ExchangeBuilder, Queue, QueueBu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use task::Priority;
+    use job::Priority;
 
     #[test]
     fn priority_queue() {

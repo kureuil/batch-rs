@@ -13,12 +13,12 @@ pub struct Error {
 /// A set of errors that can occur interacting with queues & workers.
 #[derive(Debug, Fail)]
 pub enum ErrorKind {
-    /// Couldn't serialize `Task` or `Job`.
-    #[fail(display = "Couldn't serialize Task or Job: {}", _0)]
+    /// Couldn't serialize `Job`.
+    #[fail(display = "Couldn't serialize Job: {}", _0)]
     Serialization(#[cause] ::serde_json::Error),
 
-    /// Couldn't deserialize `Task` or `Job`.
-    #[fail(display = "Couldn't deserialize Task or Job: {}", _0)]
+    /// Couldn't deserialize `Job`.
+    #[fail(display = "Couldn't deserialize Job: {}", _0)]
     Deserialization(#[cause] ::serde_json::Error),
 
     /// Couldn't create Tokio reactor
@@ -60,7 +60,7 @@ impl Error {
         self.inner.get_context()
     }
 
-    /// Returns true if the error is from the serialization of a `Job` or a `Task`.
+    /// Returns true if the error is from the serialization of a `Job`.
     pub fn is_serialization(&self) -> bool {
         match *self.kind() {
             ErrorKind::Serialization(_) => true,
@@ -68,7 +68,7 @@ impl Error {
         }
     }
 
-    /// Returns true if the error is from the deserialization of a `Job` or a `Task`.
+    /// Returns true if the error is from the deserialization of a `Job`.
     pub fn is_deserialization(&self) -> bool {
         match *self.kind() {
             ErrorKind::Deserialization(_) => true,

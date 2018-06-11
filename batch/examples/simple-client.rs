@@ -11,9 +11,9 @@ extern crate tokio;
 use batch::{exchange, job, queue, ClientBuilder};
 use futures::{future, Future};
 
-#[derive(Serialize, Deserialize, Task)]
-#[task_name = "batch::SayHello"]
-#[task_routing_key = "hello-world"]
+#[derive(Serialize, Deserialize, Job)]
+#[job_name = "batch::SayHello"]
+#[job_routing_key = "hello-world"]
 struct SayHello {
     to: String,
 }
@@ -30,10 +30,9 @@ fn main() {
         .build();
     let send = client
         .and_then(|client| {
-            let task = SayHello {
-                to: "Ferris".into(),
-            };
-            job(task).exchange("batch.example").send(&client)
+            let to = "Ferris".to_string();
+
+            job(SayHello { to }).exchange("batch.example").send(&client)
         })
         .map_err(|e| eprintln!("An error occured in the client: {}", e));
     tokio::run(future::lazy(|| {

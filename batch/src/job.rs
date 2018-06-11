@@ -1,175 +1,128 @@
-//! A serialized `Task` annotated with metadata.
+//! A trait representing a job.
 
-use std::fmt;
-use std::result::Result as StdResult;
+use std::str::FromStr;
 use std::time::Duration;
 
-use futures::{Future, IntoFuture};
-use lapin::channel::{BasicProperties, BasicPublishOptions};
-use lapin::types::{AMQPValue, FieldTable};
-use uuid::Uuid;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-use client::Client;
-use error::{self, Error, Result};
-use rabbitmq::Exchange;
-use ser;
-use task::{Priority, Task};
+use error::{Error, ErrorKind, Result};
 
-/// A `Query` is responsible for publishing jobs to `RabbitMQ`.
-pub struct Query<T>
-where
-    T: Task + 'static,
-{
-    task: T,
-    exchange: String,
-    routing_key: String,
-    timeout: Option<Duration>,
-    retries: u32,
-    options: BasicPublishOptions,
-    properties: BasicProperties,
+/// A job and its related metadata (name, queue, timeout, etc.)
+///
+/// In most cases, you should be deriving this trait instead of implementing it manually yourself.
+///
+/// # Examples
+///
+/// Using the provided defaults:
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate batch;
+/// #[macro_use]
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
+///
+/// #[derive(Deserialize, Serialize, Job)]
+/// #[job_routing_key = "emails"]
+/// struct SendConfirmationEmail;
+///
+/// #
+/// # fn main() {}
+/// ```
+///
+/// Overriding the provided defaults:
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate batch;
+/// #[macro_use]
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
+///
+/// struct App;
+///
+/// #[derive(Deserialize, Serialize, Job)]
+/// #[job_name = "batch-rs:send-password-reset-email"]
+/// #[job_routing_key = "emails"]
+/// #[job_timeout = "120"]
+/// #[job_retries = "0"]
+/// struct SendPasswordResetEmail;
+///
+/// #
+/// # fn main() {}
+/// ```
+pub trait Job: DeserializeOwned + Serialize {
+    /// A should-be-unique human-readable ID for this job.
+    fn name() -> &'static str;
+
+    /// The exchange the job will be published to.
+    fn exchange() -> &'static str;
+
+    /// The routing key associated to this job.
+    fn routing_key() -> &'static str;
+
+    /// The number of times this job must be retried in case of error.
+    fn retries() -> u32;
+
+    /// An optional duration representing the time allowed for this job's handler to complete.
+    fn timeout() -> Option<Duration>;
+
+    /// The priority associated to this job.
+    fn priority() -> Priority;
 }
 
-impl<T> fmt::Debug for Query<T>
-where
-    T: Task + fmt::Debug + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
-        write!(
-            f,
-            "Query {{ task: {:?} exchange: {:?} routing_key: {:?} timeout: {:?} retries: {:?} options: {:?} properties: {:?} }}",
-            self.task,
-            self.exchange,
-            self.routing_key,
-            self.timeout,
-            self.retries,
-            self.options,
-            self.properties
-        )
+/// The different priorities that can be assigned to a `Job`.
+///
+/// The default value is `Priority::Normal`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Priority {
+    /// The lowest available priority for a job.
+    Trivial,
+    /// A lower priority than `Priority::Normal` but higher than `Priority::Trivial`.
+    Low,
+    /// The default priority for a job.
+    Normal,
+    /// A higher priority than `Priority::Normal` but higher than `Priority::Critical`.
+    High,
+    /// The highest available priority for a job.
+    Critical,
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Priority::Normal
     }
 }
 
-impl<T> Query<T>
-where
-    T: Task + Send + 'static,
-{
-    /// Create a new `Query` from a `Task` instance.
-    pub fn new(task: T) -> Self {
-        let task_id = Uuid::new_v4().to_string();
-        let mut headers = FieldTable::new();
-        headers.insert("lang".to_string(), AMQPValue::LongString("rs".to_string()));
-        headers.insert(
-            "task".to_string(),
-            AMQPValue::LongString(T::name().to_string()),
-        );
-        headers.insert("id".to_string(), AMQPValue::LongString(task_id.clone()));
-        headers.insert("root_id".to_string(), AMQPValue::Void);
-        headers.insert("parent_id".to_string(), AMQPValue::Void);
-        headers.insert("group".to_string(), AMQPValue::Void);
-        headers.insert(
-            "timelimit".to_string(),
-            AMQPValue::FieldArray(vec![
-                AMQPValue::Void,
-                T::timeout().map_or(AMQPValue::Void, |d| AMQPValue::Timestamp(d.as_secs())),
-            ]),
-        );
-        let properties = BasicProperties {
-            priority: Some(T::priority().to_u8()),
-            content_type: Some("application/json".to_string()),
-            content_encoding: Some("utf-8".to_string()),
-            headers: Some(headers),
-            correlation_id: Some(task_id),
-            ..Default::default()
-        };
-        Query {
-            task,
-            exchange: T::exchange().to_string(),
-            routing_key: T::routing_key().to_string(),
-            timeout: T::timeout(),
-            retries: T::retries(),
-            options: BasicPublishOptions::default(),
-            properties,
+impl FromStr for Priority {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "trivial" => Ok(Priority::Trivial),
+            "low" => Ok(Priority::Low),
+            "normal" => Ok(Priority::Normal),
+            "high" => Ok(Priority::High),
+            "critical" => Ok(Priority::Critical),
+            _ => Err(ErrorKind::InvalidPriority)?,
         }
     }
-
-    /// Return a reference the properties of this message.
-    pub fn properties(&self) -> &BasicProperties {
-        &self.properties
-    }
-
-    /// Return a mutable reference the properties of this message.
-    pub fn properties_mut(&mut self) -> &mut BasicProperties {
-        &mut self.properties
-    }
-
-    /// Return a reference the options of this message.
-    pub fn options(&self) -> &BasicPublishOptions {
-        &self.options
-    }
-
-    /// Return a mutable reference the options of this message.
-    pub fn options_mut(&mut self) -> &mut BasicPublishOptions {
-        &mut self.options
-    }
-
-    /// Set the exchange this task will be published to.
-    pub fn exchange(mut self, exchange: &str) -> Self {
-        self.exchange = exchange.into();
-        self
-    }
-
-    /// Set the routing key associated with this task.
-    pub fn routing_key(mut self, routing_key: &str) -> Self {
-        self.routing_key = routing_key.into();
-        self
-    }
-
-    /// Set the timeout associated to this task's execution.
-    pub fn timeout(mut self, timeout: Option<Duration>) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Set the number of allowed retries for this task.
-    pub fn retries(mut self, retries: u32) -> Self {
-        self.retries = retries;
-        self
-    }
-
-    /// Set the priority for this task.
-    pub fn priority(mut self, priority: Priority) -> Self {
-        {
-            let properties = self.properties_mut();
-            properties.priority = Some(priority.to_u8());
-        }
-        self
-    }
-
-    /// Send the job using the given client.
-    pub fn send(self, client: &Client) -> Box<Future<Item = (), Error = Error> + Send> {
-        let client = client.clone();
-        let task = ser::to_vec(&self.task)
-            .map_err(error::ErrorKind::Serialization)
-            .into_future()
-            .map_err(|e| e.into())
-            .and_then(move |serialized| {
-                client.send(
-                    &self.exchange,
-                    &self.routing_key,
-                    &serialized,
-                    &self.options,
-                    self.properties,
-                )
-            });
-        Box::new(task)
-    }
 }
 
-/// Shorthand to create a new `Query` instance from a `Task`.
-pub fn job<T>(task: T) -> Query<T>
-where
-    T: Task + Send + 'static,
-{
-    Query::new(task)
+impl Priority {
+    /// Return the priority as a `u8` ranging from 0 to 4.
+    pub(crate) fn to_u8(&self) -> u8 {
+        match *self {
+            Priority::Trivial => 0,
+            Priority::Low => 1,
+            Priority::Normal => 2,
+            Priority::High => 3,
+            Priority::Critical => 4,
+        }
+    }
 }
 
 /// The different states a `Job` can be in.
@@ -188,10 +141,46 @@ pub enum Status {
 /// Stores the reason for a job failure.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Failure {
-    /// The task handler returned an error.
+    /// The job handler returned an error.
     Error,
-    /// The task didn't complete in time.
+    /// The job didn't complete in time.
     Timeout,
-    /// The task crashed (panic, segfault, etc.) while executing.
+    /// The job crashed (panic, segfault, etc.) while executing.
     Crash,
+}
+
+/// The `Perform` trait allow marking a `Job` as executable.
+///
+/// # Example
+///
+/// ```
+/// #[macro_use]
+/// extern crate batch;
+/// #[macro_use]
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
+///
+/// use batch::Perform;
+///
+/// #[derive(Serialize, Deserialize, Job)]
+/// #[job_routing_key = "emails"]
+/// struct SendPasswordResetEmail;
+///
+/// impl Perform for SendPasswordResetEmail {
+///     type Context = ();
+///
+///     fn perform(&self, _ctx: Self::Context) {
+///         println!("Sending password reset email...");
+///     }
+/// }
+///
+/// # fn main() {}
+/// ```
+pub trait Perform {
+    /// The type of the context value that will be given to this job's handler.
+    type Context;
+
+    /// Perform the job's duty.
+    fn perform(&self, Self::Context);
 }

@@ -1,9 +1,9 @@
 # Batch
 
-A distributed task queue library written in Rust using RabbitMQ as a message
+A distributed job queue/task queue library written in Rust using RabbitMQ as a message
 broker.
 
-This library allows you to send a task to a RabbitMQ broker, so that a worker
+This library allows you to send a job to a RabbitMQ broker, so that a worker
 will be able to pull it and execute the associated handler. It leverages the
 `futures` and `tokio-core` crates to provide asynchronous I/O operations.
 

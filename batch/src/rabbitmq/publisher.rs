@@ -12,7 +12,7 @@ use rabbitmq::common::{connect, declare_exchanges, declare_queues, HeartbeatHand
 use rabbitmq::stream::Stream;
 use rabbitmq::types::{Exchange, Queue};
 
-/// An AMQP based publisher for the Batch distributed task queue.
+/// An AMQP based publisher for the Batch distributed job queue.
 #[derive(Clone)]
 pub struct Publisher {
     channel: Channel<Stream>,

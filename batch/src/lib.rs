@@ -1,6 +1,6 @@
-//! Batch is a distributed task queue library.
+//! Batch is a distributed job queue/task queue library.
 //!
-//! This library allows you to send a task to a RabbitMQ broker, so that a worker will be able
+//! This library allows you to send a job to a RabbitMQ broker, so that a worker will be able
 //! to pull it and execute the associated handler. It leverages the `futures` and `tokio-core`
 //! crates to provide asynchronous I/O operations.
 //!
@@ -21,8 +21,8 @@
 //! # use failure::Error;
 //! use futures::Future;
 //!
-//! #[derive(Serialize, Deserialize, Task)]
-//! #[task_routing_key = "hello-world"]
+//! #[derive(Serialize, Deserialize, Job)]
+//! #[job_routing_key = "hello-world"]
 //! struct SayHello {
 //!     to: String,
 //! }
@@ -36,11 +36,9 @@
 //!         .exchanges(exchanges)
 //!         .build();
 //!     let send = client.and_then(|client| {
-//!         let task = SayHello {
-//!             to: "Ferris".into(),
-//!         };
+//!         let to = "Ferris".to_string();
 //!
-//!         job(task).exchange("batch.example").send(&client)
+//!         job(SayHello { to }).exchange("batch.example").send(&client)
 //!     }).map_err(|e| eprintln!("Couldn't publish message: {}", e));
 //!
 //! # if false {
@@ -94,13 +92,13 @@ use serde_json::ser;
 mod client;
 mod error;
 mod job;
+mod query;
 mod rabbitmq;
-mod task;
 mod worker;
 
 pub use client::{Client, ClientBuilder};
 pub use error::Error;
-pub use job::{job, Query};
+pub use job::{Job, Perform, Priority};
+pub use query::{job, Query};
 pub use rabbitmq::{exchange, queue, ExchangeBuilder, QueueBuilder};
-pub use task::{Perform, Priority, Task};
 pub use worker::{Worker, WorkerBuilder};
