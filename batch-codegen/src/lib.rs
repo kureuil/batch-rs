@@ -9,12 +9,13 @@
 #![recursion_limit = "128"]
 
 extern crate proc_macro;
+extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
 extern crate syn;
 
-use proc_macro::TokenStream;
-use quote::{ToTokens, Tokens};
+use proc_macro::TokenStream as StdTokenStream;
+use proc_macro2::{Span, TokenStream};
 use syn::{DeriveInput, Ident, Lit, Meta};
 
 /// Macros 1.1 implementation of `#[derive(Task)]`
@@ -39,11 +40,14 @@ use syn::{DeriveInput, Ident, Lit, Meta};
 /// * `task_priority`: The priority associated to the task
 ///   e.g: `#[task_priority = "critical"]`
 ///   **default value**: `"normal"`
-#[proc_macro_derive(Task,
-                    attributes(task_name, task_exchange, task_routing_key, task_timeout,
-                               task_retries, task_priority))]
-pub fn task_derive(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse(input).unwrap();
+#[proc_macro_derive(
+    Task,
+    attributes(
+        task_name, task_exchange, task_routing_key, task_timeout, task_retries, task_priority
+    )
+)]
+pub fn task_derive(input: StdTokenStream) -> StdTokenStream {
+    let input: DeriveInput = syn::parse(input.into()).unwrap();
     let task_name = get_derive_name_attr(&input);
     let task_exchange = get_derive_exchange_attr(&input);
     let task_routing_key = get_derive_routing_key_attr(&input);
@@ -51,66 +55,80 @@ pub fn task_derive(input: TokenStream) -> TokenStream {
     let task_retries = get_derive_retries_attr(&input);
     let task_priority = get_derive_priority_attr(&input);
     let name = &input.ident;
+    let impl_block_name = gen_derive_impl_block_name(name.to_string());
 
     let expanded = quote! {
-        impl ::batch::Task for #name {
+        #[allow(non_upper_case_globals)]
+        const #impl_block_name: () =
+        {
+            extern crate batch as _batch;
 
-            fn name() -> &'static str {
-                #task_name
+            use ::std::string::String;
+            use ::std::option::Option;
+            use ::std::time::Duration;
+
+            lazy_static! {
+                static ref _BATCH_JOB_NAME: String = #task_name.replace("::", ".");
             }
 
-            fn exchange() -> &'static str {
-                #task_exchange
-            }
+            impl _batch::Task for #name {
+                fn name() -> &'static str {
+                    _BATCH_JOB_NAME.as_ref()
+                }
 
-            fn routing_key() -> &'static str {
-                #task_routing_key
-            }
+                fn exchange() -> &'static str {
+                    #task_exchange
+                }
 
-            fn timeout() -> Option<::std::time::Duration> {
-                #task_timeout
-            }
+                fn routing_key() -> &'static str {
+                    #task_routing_key
+                }
 
-            fn retries() -> u32 {
-                #task_retries
-            }
+                fn timeout() -> Option<Duration> {
+                    #task_timeout
+                }
 
-            fn priority() -> ::batch::Priority {
-                #task_priority
+                fn retries() -> u32 {
+                    #task_retries
+                }
+
+                fn priority() -> _batch::Priority {
+                    #task_priority
+                }
             }
-        }
+        };
     };
     expanded.into()
 }
 
-fn get_derive_name_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_name_attr(input: &DeriveInput) -> TokenStream {
     if let Some(raw) = get_str_attr_by_name(&input.attrs, "task_name") {
-        raw.into_tokens()
+        quote! { #raw }
     } else {
-        let name = input.ident.as_ref();
+        let name = input.ident.to_string();
         quote! {
             concat!(concat!(module_path!(), "::"), #name)
         }
     }
 }
 
-fn get_derive_exchange_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_exchange_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
         let raw = get_str_attr_by_name(&input.attrs, "task_exchange");
         raw.unwrap_or_else(|| "".to_string())
     };
-    attr.into_tokens()
+    quote! { #attr }
 }
 
-fn get_derive_routing_key_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_routing_key_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
         let raw = get_str_attr_by_name(&input.attrs, "task_routing_key");
         raw.expect("task_routing_key is a mandatory attribute when deriving Task")
     };
-    attr.into_tokens()
+    quote! { #attr }
 }
 
-fn get_derive_timeout_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_timeout_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
         let raw = get_str_attr_by_name(&input.attrs, "task_timeout");
         raw.unwrap_or_else(|| "900".to_string())
@@ -118,11 +136,11 @@ fn get_derive_timeout_attr(input: &DeriveInput) -> Tokens {
     let timeout = attr.parse::<u64>()
         .expect("Couldn't parse timeout as an unsigned integer");
     quote! {
-        ::std::option::Option::Some(::std::time::Duration::from_secs(#timeout))
+        Option::Some(Duration::from_secs(#timeout))
     }
 }
 
-fn get_derive_retries_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_retries_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
         let raw = get_str_attr_by_name(&input.attrs, "task_retries");
         raw.unwrap_or_else(|| "2".to_string())
@@ -134,21 +152,26 @@ fn get_derive_retries_attr(input: &DeriveInput) -> Tokens {
     }
 }
 
-fn get_derive_priority_attr(input: &DeriveInput) -> Tokens {
+fn get_derive_priority_attr(input: &DeriveInput) -> TokenStream {
     let attr = {
         let raw = get_str_attr_by_name(&input.attrs, "task_priority");
         raw.unwrap_or_else(|| "normal".to_string())
     };
     match attr.to_lowercase().as_ref() {
-        "trivial" => quote! { ::batch::Priority::Trivial },
-        "low" => quote! { ::batch::Priority::Low },
-        "normal" => quote! { ::batch::Priority::Normal },
-        "high" => quote! { ::batch::Priority::High },
-        "critical" => quote! { ::batch::Priority::Critical },
+        "trivial" => quote! { _batch::Priority::Trivial },
+        "low" => quote! { _batch::Priority::Low },
+        "normal" => quote! { _batch::Priority::Normal },
+        "high" => quote! { _batch::Priority::High },
+        "critical" => quote! { _batch::Priority::Critical },
         _ => {
             panic!("Invalid priority, must be one of: trivial, low, normal, high, critical.");
         }
     }
+}
+
+fn gen_derive_impl_block_name(name: String) -> TokenStream {
+    let ident = Ident::new(&format!("_IMPL_BATCH_JOB_FOR_{}", name), Span::call_site());
+    quote! { #ident }
 }
 
 /// Gets the string value of an attribute by its name.
@@ -164,8 +187,7 @@ fn get_str_attr_by_name(haystack: &[syn::Attribute], needle: &str) -> Option<Str
 }
 
 /// Gets the raw value of an attribute by its name.
-fn get_raw_attr_by_name(haystack: &[syn::Attribute], needle_raw: &str) -> Option<Lit> {
-    let needle = Ident::from(needle_raw);
+fn get_raw_attr_by_name(haystack: &[syn::Attribute], needle: &str) -> Option<Lit> {
     for attr in haystack {
         let meta = match attr.interpret_meta() {
             Some(meta) => meta,
