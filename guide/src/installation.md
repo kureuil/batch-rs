@@ -7,8 +7,8 @@ Add this to your `Cargo.toml`:
 batch = "0.1"
 ```
 
-> **Note**: Task serialization depends on [`serde`], so you will have to add it
-to your project's dependencies as well.
+> **Note**: Job serialization depends on [`serde`] & [`lazy_static`], so you
+will have to add them to your project's dependencies as well.
 
 Then add this to your crate root:
 
@@ -21,5 +21,6 @@ Examples are available on [GitHub][examples] or you can continue and read the
 Getting Started guide.
 
 [`serde`]: https://serde.rs
+[`lazy_static`]: https://crates.io/crates/lazy-static
 [examples]: https://github.com/kureuil/batch-rs/tree/master/batch/examples
 

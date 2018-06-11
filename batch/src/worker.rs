@@ -1,15 +1,15 @@
 //! Batch Worker.
 //!
-//! The worker is responsible for polling the broker for tasks, deserializing them an execute
-//! them. It should never ever crash and sould be resilient to panic-friendly task handlers. Its
+//! The worker is responsible for polling the broker for jobs, deserializing them and execute
+//! them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
 //! `Broker` implementation is completely customizable by the user.
 //!
 //! # Trade-offs
 //!
 //! The most important thing to know about the worker is that it favours safety over performance.
-//! For each incoming job, it will spawn a new process whose only goal is to perform the task.
+//! For each incoming job, it will spawn a new process whose only goal is to perform the job.
 //! Even if this is slower than just executing the function in a threadpool, it allows much more
-//! control: timeouts wouldn't even be possible if we were running the tasks in-process. It also
+//! control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
 //! protects against unpredictable crashes
 
 use std::collections::HashMap;
@@ -30,12 +30,11 @@ use wait_timeout::ChildExt;
 
 use de;
 use error::{self, Result};
-use job::{Failure as JobFailure, Status as JobStatus};
+use job::{Failure as JobFailure, Job, Perform, Status as JobStatus};
 use rabbitmq::{self, Exchange, ExchangeBuilder, Queue, QueueBuilder};
 use ser;
-use task::{Perform, Task};
 
-/// Type of task handlers stored in `Worker`.
+/// Type of job handlers stored in `Worker`.
 type WorkerFn<Ctx> = Fn(&[u8], Ctx) -> Result<()>;
 
 /// A builder to ease the construction of `Worker` instances.
@@ -66,7 +65,7 @@ where
 impl<Ctx> WorkerBuilder<Ctx> {
     /// Create a new `WorkerBuilder` instance, using the mandatory context.
     ///
-    /// The type of the given context is then used to typecheck the tasks registered on
+    /// The type of the given context is then used to typecheck the jobs registered on
     /// this builder.
     ///
     /// # Example
@@ -176,9 +175,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
         self
     }
 
-    /// Register a new `Task` to be handled by the `Worker`.
+    /// Register a new `Job` to be handled by the `Worker`.
     ///
-    /// The type of the `Task`'s `Context` must be the same as the `Worker`'s.
+    /// The type of the `Job`'s `Context` must be the same as the `Worker`'s.
     ///
     /// # Example
     ///
@@ -192,8 +191,8 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// #
     /// use batch::{Perform, WorkerBuilder};
     ///
-    /// #[derive(Serialize, Deserialize, Task)]
-    /// #[task_routing_key = "hello-world"]
+    /// #[derive(Serialize, Deserialize, Job)]
+    /// #[job_routing_key = "hello-world"]
     /// struct SayHello {
     ///     to: String,
     /// }
@@ -208,18 +207,18 @@ impl<Ctx> WorkerBuilder<Ctx> {
     ///
     /// # fn main() {
     /// let builder = WorkerBuilder::new(())
-    ///     .task::<SayHello>();
+    ///     .job::<SayHello>();
     /// # }
     /// ```
-    pub fn task<T>(mut self) -> Self
+    pub fn job<T>(mut self) -> Self
     where
-        T: Task + Perform<Context = Ctx>,
+        T: Job + Perform<Context = Ctx>,
     {
         self.handlers.insert(
             T::name(),
             Box::new(|data, ctx| -> Result<()> {
-                let task: T = de::from_slice(data).map_err(error::ErrorKind::Deserialization)?;
-                Perform::perform(&task, ctx);
+                let job: T = de::from_slice(data).map_err(error::ErrorKind::Deserialization)?;
+                Perform::perform(&job, ctx);
                 Ok(())
             }),
         );
@@ -227,9 +226,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
         self
     }
 
-    /// Sets the number of tasks to execute in parallel.
+    /// Sets the number of jobs to execute in parallel.
     ///
-    /// By default, the number of tasks executed in parallel is the
+    /// By default, the number of jobs executed in parallel is the
     /// number of detected cores on the machine.
     ///
     /// # Example
@@ -269,7 +268,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
     }
 }
 
-/// Long-running worker polling tasks from the given `Broker`.
+/// Long-running worker polling jobs from the given `Broker`.
 pub struct Worker<Ctx> {
     connection_url: String,
     context: Ctx,
@@ -295,7 +294,7 @@ where
 }
 
 impl<Ctx> Worker<Ctx> {
-    /// Runs the worker, polling tasks from the broker and executing them.
+    /// Runs the worker, polling jobs from the broker and executing them.
     ///
     /// # Example
     ///

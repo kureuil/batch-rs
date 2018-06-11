@@ -587,7 +587,7 @@ impl QueueBuilder {
         self
     }
 
-    /// Enable task priorities on this queue.
+    /// Enable priorities on this queue.
     ///
     /// # Example
     ///

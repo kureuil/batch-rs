@@ -141,7 +141,7 @@ impl ClientBuilder {
     }
 }
 
-/// The `Client` is responsible for sending tasks to the broker.
+/// The `Client` is responsible for sending jobs to the broker.
 #[derive(Clone, Debug)]
 pub struct Client {
     publisher: Publisher,
