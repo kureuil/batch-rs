@@ -3,8 +3,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use error::{Error, ErrorKind, Result};
 
@@ -19,9 +19,10 @@ use error::{Error, ErrorKind, Result};
 /// ```rust
 /// #[macro_use]
 /// extern crate batch;
-/// extern crate serde;
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
 ///
 /// #[derive(Deserialize, Serialize, Task)]
 /// #[task_routing_key = "emails"]
@@ -36,9 +37,10 @@ use error::{Error, ErrorKind, Result};
 /// ```rust
 /// #[macro_use]
 /// extern crate batch;
-/// extern crate serde;
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
 ///
 /// struct App;
 ///
@@ -130,9 +132,10 @@ impl Priority {
 /// ```
 /// #[macro_use]
 /// extern crate batch;
-/// extern crate serde;
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate lazy_static;
+/// #[macro_use]
+/// extern crate serde;
 ///
 /// use batch::Perform;
 ///

@@ -11,9 +11,10 @@
 //! extern crate batch;
 //! # extern crate failure;
 //! extern crate futures;
-//! extern crate serde;
 //! #[macro_use]
-//! extern crate serde_derive;
+//! extern crate lazy_static;
+//! #[macro_use]
+//! extern crate serde;
 //! extern crate tokio;
 //!
 //! use batch::{exchange, job, ClientBuilder};
@@ -66,9 +67,8 @@ extern crate lapin_futures as lapin;
 extern crate log;
 extern crate native_tls;
 extern crate num_cpus;
-extern crate serde;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 extern crate serde_json;
 #[cfg(test)]
 extern crate tokio;

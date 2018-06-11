@@ -2,9 +2,10 @@
 extern crate batch;
 extern crate env_logger;
 extern crate futures;
-extern crate serde;
 #[macro_use]
-extern crate serde_derive;
+extern crate lazy_static;
+#[macro_use]
+extern crate serde;
 extern crate tokio;
 
 use batch::{exchange, queue, Perform, WorkerBuilder};
