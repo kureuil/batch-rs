@@ -10,6 +10,8 @@ use error::{Error, ErrorKind};
 use rabbitmq::{Exchange, ExchangeBuilder, Publisher, Queue, QueueBuilder};
 
 /// A builder to ease the construction of `Client` instances.
+///
+/// See [`Client::builder`](struct.Client.html#method.builder).
 #[derive(Debug)]
 pub struct ClientBuilder {
     connection_url: String,
@@ -18,21 +20,14 @@ pub struct ClientBuilder {
     handle: Handle,
 }
 
-impl Default for ClientBuilder {
-    fn default() -> ClientBuilder {
+impl ClientBuilder {
+    fn new() -> Self {
         ClientBuilder {
             connection_url: "amqp://localhost/%2f".into(),
             exchanges: Vec::new(),
             queues: Vec::new(),
             handle: Handle::current(),
         }
-    }
-}
-
-impl ClientBuilder {
-    /// Create a new `ClientBuilder` instance.
-    pub fn new() -> Self {
-        ClientBuilder::default()
     }
 
     /// Set the URL used to connect to `RabbitMQ`.
@@ -43,9 +38,9 @@ impl ClientBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ClientBuilder;
+    /// use batch::Client;
     ///
-    /// let builder = ClientBuilder::new()
+    /// let builder = Client::builder()
     ///     .connection_url("amqp://guest:guest@localhost:5672/%2f");
     /// ```
     pub fn connection_url(mut self, url: &str) -> Self {
@@ -60,12 +55,12 @@ impl ClientBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::{exchange, ClientBuilder};
+    /// use batch::{exchange, Client};
     ///
     /// let exchanges = vec![
     ///     exchange("batch.example"),
     /// ];
-    /// let builder = ClientBuilder::new()
+    /// let builder = Client::builder()
     ///     .exchanges(exchanges);
     /// ```
     pub fn exchanges<EIter>(mut self, exchanges: EIter) -> Self
@@ -84,12 +79,12 @@ impl ClientBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::{queue, WorkerBuilder};
+    /// use batch::{queue, Client};
     ///
     /// let queues = vec![
     ///     queue("hello-world").bind("batch.example", "hello-world"),
     /// ];
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Client::builder()
     ///     .queues(queues);
     /// ```
     pub fn queues<QIter>(mut self, queues: QIter) -> Self
@@ -109,7 +104,7 @@ impl ClientBuilder {
     /// # extern crate failure;
     /// # extern crate tokio;
     /// #
-    /// use batch::ClientBuilder;
+    /// use batch::Client;
     /// # use failure::Error;
     /// use tokio::reactor::Handle;
     ///
@@ -119,7 +114,7 @@ impl ClientBuilder {
     /// #
     /// # fn example() -> Result<(), Error> {
     /// let handle = Handle::current();
-    /// let builder = ClientBuilder::new()
+    /// let builder = Client::builder()
     ///     .handle(handle);
     /// # Ok(())
     /// # }
@@ -148,6 +143,19 @@ pub struct Client {
 }
 
 impl Client {
+    /// Create a new `ClientBuilder` instance.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::Client;
+    ///
+    /// let builder = Client::builder();
+    /// ```
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::new()
+    }
+
     /// Send a job to the client's message broker.
     ///
     /// Once a job is sent to the message broker, it is transmitted to a Worker currently

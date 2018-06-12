@@ -8,7 +8,7 @@ extern crate lazy_static;
 extern crate serde;
 extern crate tokio;
 
-use batch::{exchange, queue, Perform, WorkerBuilder};
+use batch::{exchange, queue, Perform, Worker};
 use futures::Future;
 use std::{thread, time};
 
@@ -35,7 +35,7 @@ fn main() {
     println!("Starting RabbitMQ worker example");
     let exchanges = vec![exchange("batch.example")];
     let queues = vec![queue("hello-world").bind("batch.example", "hello-world")];
-    let worker = WorkerBuilder::new(())
+    let worker = Worker::builder(())
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
         .queues(queues)

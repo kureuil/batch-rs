@@ -64,6 +64,19 @@ impl cmp::Ord for Exchange {
 }
 
 impl Exchange {
+    /// Create a new `ExchangeBuilder` instance from the desired exchange name.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::Exchange;
+    ///
+    /// let builder = Exchange::builder("batch.example");
+    /// ```
+    pub fn builder(name: &str) -> ExchangeBuilder {
+        ExchangeBuilder::new(name)
+    }
+
     /// Return the name of this `Exchange`.
     pub fn name(&self) -> &str {
         &self.name
@@ -91,6 +104,8 @@ impl Exchange {
 }
 
 /// A builder for `RabbitMQ` `Exchange`.
+///
+/// See [`Exchange::builder`](struct.Exchange.html#method.builder).
 #[derive(Debug)]
 pub struct ExchangeBuilder {
     name: String,
@@ -105,11 +120,11 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let builder = ExchangeBuilder::new("batch.example");
+    /// let builder = Exchange::builder("batch.example");
     /// ```
-    pub fn new(name: &str) -> ExchangeBuilder {
+    fn new(name: &str) -> ExchangeBuilder {
         ExchangeBuilder {
             name: name.into(),
             bindings: BTreeSet::new(),
@@ -126,9 +141,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let builder = ExchangeBuilder::new("batch.example")
+    /// let builder = Exchange::builder("batch.example")
     ///     .bind("batch.messaging", "hello-world");
     /// ```
     pub fn bind(mut self, exchange: &str, routing_key: &str) -> Self {
@@ -144,9 +159,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let builder = ExchangeBuilder::new("batch.example");
+    /// let builder = Exchange::builder("batch.example");
     /// {
     ///     let options = builder.options();
     ///     println!("Options: {:?}", options);
@@ -161,9 +176,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example");
+    /// let mut builder = Exchange::builder("batch.example");
     /// {
     ///     let options = builder.options_mut();
     ///     options.durable = true;
@@ -179,9 +194,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let builder = ExchangeBuilder::new("batch.example");
+    /// let builder = Exchange::builder("batch.example");
     /// {
     ///     let arguments = builder.arguments();
     ///     println!("Arguments: {:?}", arguments);
@@ -200,10 +215,10 @@ impl ExchangeBuilder {
     /// extern crate lapin_futures;
     ///
     /// use lapin_futures::types::AMQPValue;
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
     /// # fn main() {
-    /// let mut builder = ExchangeBuilder::new("batch.example");
+    /// let mut builder = Exchange::builder("batch.example");
     /// {
     ///     let arguments = builder.arguments_mut();
     ///     arguments.insert("x-custom-argument".to_string(), AMQPValue::Boolean(true));
@@ -220,9 +235,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .durable(true);
     /// ```
     pub fn durable(mut self, durable: bool) -> Self {
@@ -235,9 +250,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .auto_delete(true);
     /// ```
     pub fn auto_delete(mut self, auto_delete: bool) -> Self {
@@ -250,9 +265,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .nowait(true);
     /// ```
     pub fn nowait(mut self, nowait: bool) -> Self {
@@ -265,9 +280,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .internal(true);
     /// ```
     pub fn internal(mut self, internal: bool) -> Self {
@@ -280,9 +295,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .passive(true);
     /// ```
     pub fn passive(mut self, passive: bool) -> Self {
@@ -295,9 +310,9 @@ impl ExchangeBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::ExchangeBuilder;
+    /// use batch::Exchange;
     ///
-    /// let mut builder = ExchangeBuilder::new("batch.example")
+    /// let mut builder = Exchange::builder("batch.example")
     ///     .ticket(2);
     /// ```
     pub fn ticket(mut self, ticket: u16) -> Self {
@@ -352,6 +367,19 @@ impl cmp::Ord for Queue {
 }
 
 impl Queue {
+    /// Create a new `QueueBuilder` from the desired queue name.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::Queue;
+    ///
+    /// let queue = Queue::builder("video-transcoding");
+    /// ```
+    pub fn builder(name: &str) -> QueueBuilder {
+        QueueBuilder::new(name)
+    }
+
     /// Return the name of this `Queue`.
     pub fn name(&self) -> &str {
         &self.name
@@ -374,6 +402,8 @@ impl Queue {
 }
 
 /// A builder for `RabbitMQ` `Queue`.
+///
+/// See [`Queue::builder`](struct.Queue.html#method.builder).
 #[derive(Debug)]
 pub struct QueueBuilder {
     name: String,
@@ -383,16 +413,7 @@ pub struct QueueBuilder {
 }
 
 impl QueueBuilder {
-    /// Create a new `QueueBuilder` from the desired queue name.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::QueueBuilder;
-    ///
-    /// let queue = QueueBuilder::new("video-transcoding");
-    /// ```
-    pub fn new(name: &str) -> QueueBuilder {
+    fn new(name: &str) -> QueueBuilder {
         QueueBuilder {
             name: name.into(),
             bindings: BTreeSet::new(),
@@ -406,9 +427,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let builder = QueueBuilder::new("video-transcoding");
+    /// let builder = Queue::builder("video-transcoding");
     /// {
     ///     let options = builder.options();
     ///     println!("Options: {:?}", options);
@@ -423,9 +444,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding");
+    /// let mut builder = Queue::builder("video-transcoding");
     /// {
     ///     let options = builder.options_mut();
     ///     options.auto_delete = true;
@@ -441,9 +462,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let builder = QueueBuilder::new("video-transcoding");
+    /// let builder = Queue::builder("video-transcoding");
     /// {
     ///     let arguments = builder.arguments();
     ///     println!("Arguments: {:?}", arguments);
@@ -462,10 +483,10 @@ impl QueueBuilder {
     /// extern crate lapin_futures;
     ///
     /// use lapin_futures::types::AMQPValue;
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
     /// # fn main() {
-    /// let mut builder = QueueBuilder::new("video-transcoding");
+    /// let mut builder = Queue::builder("video-transcoding");
     /// {
     ///     let arguments = builder.arguments_mut();
     ///     arguments.insert("x-custom-argument".to_string(), AMQPValue::Boolean(true));
@@ -482,9 +503,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// QueueBuilder::new("video-transcoding")
+    /// Queue::builder("video-transcoding")
     ///     .bind("movies", "transcoding")
     ///     .bind("series", "transcoding")
     ///     .bind("anime", "transcoding");
@@ -502,9 +523,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .durable(true);
     /// ```
     pub fn durable(mut self, durable: bool) -> Self {
@@ -517,9 +538,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .auto_delete(true);
     /// ```
     pub fn auto_delete(mut self, auto_delete: bool) -> Self {
@@ -532,9 +553,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .nowait(true);
     /// ```
     pub fn nowait(mut self, nowait: bool) -> Self {
@@ -547,9 +568,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .exclusive(true);
     /// ```
     pub fn exclusive(mut self, exclusive: bool) -> Self {
@@ -562,9 +583,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .passive(true);
     /// ```
     pub fn passive(mut self, passive: bool) -> Self {
@@ -577,9 +598,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// let mut builder = QueueBuilder::new("video-transcoding")
+    /// let mut builder = Queue::builder("video-transcoding")
     ///     .ticket(2);
     /// ```
     pub fn ticket(mut self, ticket: u16) -> Self {
@@ -592,9 +613,9 @@ impl QueueBuilder {
     /// # Example
     ///
     /// ```
-    /// use batch::QueueBuilder;
+    /// use batch::Queue;
     ///
-    /// QueueBuilder::new("video-transcoding")
+    /// Queue::builder("video-transcoding")
     ///     .enable_priorities();
     /// ```
     pub fn enable_priorities(mut self) -> Self {
