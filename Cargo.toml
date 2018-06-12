@@ -18,6 +18,7 @@ categories = ["asynchronous"]
 
 [badges]
 travis-ci = { repository = "kureuil/batch-rs" }
+appveyor = { repository = "kureuil/batch-rs", id = "p8390hfhs1ndmrv9" }
 
 [dependencies]
 amq-protocol = "0.19"
