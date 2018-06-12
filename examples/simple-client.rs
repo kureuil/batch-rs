@@ -8,7 +8,7 @@ extern crate lazy_static;
 extern crate serde;
 extern crate tokio;
 
-use batch::{exchange, job, queue, ClientBuilder};
+use batch::{exchange, job, queue, Client};
 use futures::{future, Future};
 
 #[derive(Serialize, Deserialize, Job)]
@@ -23,7 +23,7 @@ fn main() {
     println!("Starting RabbitMQ client example");
     let exchanges = vec![exchange("batch.example")];
     let queues = vec![queue("hello-world").bind("batch.example", "hello-world")];
-    let client = ClientBuilder::new()
+    let client = Client::builder()
         .connection_url("amqp://localhost/%2f")
         .exchanges(exchanges)
         .queues(queues)

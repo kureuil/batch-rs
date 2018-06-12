@@ -38,6 +38,8 @@ use ser;
 type WorkerFn<Ctx> = Fn(&[u8], Ctx) -> Result<()>;
 
 /// A builder to ease the construction of `Worker` instances.
+///
+/// See [`Worker::builder`](struct.Worker.html#method.builder).
 pub struct WorkerBuilder<Ctx> {
     connection_url: String,
     context: Ctx,
@@ -63,19 +65,7 @@ where
 }
 
 impl<Ctx> WorkerBuilder<Ctx> {
-    /// Create a new `WorkerBuilder` instance, using the mandatory context.
-    ///
-    /// The type of the given context is then used to typecheck the jobs registered on
-    /// this builder.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::WorkerBuilder;
-    ///
-    /// let builder = WorkerBuilder::new(());
-    /// ```
-    pub fn new(context: Ctx) -> Self {
+    fn new(context: Ctx) -> Self {
         WorkerBuilder {
             context,
             connection_url: "amqp://localhost/%2f".into(),
@@ -96,9 +86,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # Example
     ///
     /// ```
-    /// use batch::WorkerBuilder;
+    /// use batch::Worker;
     ///
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .connection_url("amqp://guest:guest@localhost:5672/%2f");
     /// ```
     pub fn connection_url(mut self, url: &str) -> Self {
@@ -113,12 +103,12 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # Example
     ///
     /// ```
-    /// use batch::{exchange, WorkerBuilder};
+    /// use batch::{exchange, Worker};
     ///
     /// let exchanges = vec![
     ///     exchange("batch.example"),
     /// ];
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .exchanges(exchanges);
     /// ```
     pub fn exchanges<EIter>(mut self, exchanges: EIter) -> Self
@@ -137,12 +127,12 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # Example
     ///
     /// ```
-    /// use batch::{queue, WorkerBuilder};
+    /// use batch::{queue, Worker};
     ///
     /// let queues = vec![
     ///     queue("hello-world").bind("batch.example", "hello-world"),
     /// ];
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .queues(queues);
     /// ```
     pub fn queues<QIter>(mut self, queues: QIter) -> Self
@@ -161,12 +151,12 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # extern crate batch;
     /// # extern crate tokio;
     /// #
-    /// use batch::WorkerBuilder;
+    /// use batch::Worker;
     /// use tokio::reactor::Handle;
     ///
     /// # fn main() {
     /// let handle = Handle::current();
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .handle(handle);
     /// # }
     /// ```
@@ -189,7 +179,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # #[macro_use]
     /// # extern crate serde;
     /// #
-    /// use batch::{Perform, WorkerBuilder};
+    /// use batch::{Perform, Worker};
     ///
     /// #[derive(Serialize, Deserialize, Job)]
     /// #[job_routing_key = "hello-world"]
@@ -206,7 +196,7 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// }
     ///
     /// # fn main() {
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .job::<SayHello>();
     /// # }
     /// ```
@@ -234,9 +224,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # Example
     ///
     /// ```rust
-    /// use batch::WorkerBuilder;
+    /// use batch::Worker;
     ///
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .parallelism(4);
     /// ```
     pub fn parallelism(mut self, parallelism: u16) -> Self {
@@ -249,9 +239,9 @@ impl<Ctx> WorkerBuilder<Ctx> {
     /// # Example
     ///
     /// ```
-    /// use batch::WorkerBuilder;
+    /// use batch::Worker;
     ///
-    /// let builder = WorkerBuilder::new(())
+    /// let builder = Worker::builder(())
     ///     .build();
     /// ```
     pub fn build(self) -> Result<Worker<Ctx>> {
@@ -294,6 +284,22 @@ where
 }
 
 impl<Ctx> Worker<Ctx> {
+    /// Create a new `WorkerBuilder` instance, using the mandatory context.
+    ///
+    /// The type of the given context is then used to typecheck the jobs registered on
+    /// this builder.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch::Worker;
+    ///
+    /// let builder = Worker::builder(());
+    /// ```
+    pub fn builder(context: Ctx) -> WorkerBuilder<Ctx> {
+        WorkerBuilder::new(context)
+    }
+
     /// Runs the worker, polling jobs from the broker and executing them.
     ///
     /// # Example
@@ -304,7 +310,7 @@ impl<Ctx> Worker<Ctx> {
     /// extern crate futures;
     /// extern crate tokio;
     ///
-    /// use batch::WorkerBuilder;
+    /// use batch::Worker;
     /// # use failure::Error;
     /// use futures::Future;
     ///
@@ -313,7 +319,7 @@ impl<Ctx> Worker<Ctx> {
     /// # }
     /// #
     /// # fn example() -> Result<(), Error> {
-    ///     let worker = WorkerBuilder::new(())
+    ///     let worker = Worker::builder(())
     ///         .build()?;
     ///     let task = worker.run()
     ///         .map_err(|e| eprintln!("Couldn't run worker: {}", e));

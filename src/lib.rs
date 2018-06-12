@@ -17,7 +17,7 @@
 //! extern crate serde;
 //! extern crate tokio;
 //!
-//! use batch::{exchange, job, ClientBuilder};
+//! use batch::{exchange, job, Client};
 //! # use failure::Error;
 //! use futures::Future;
 //!
@@ -31,7 +31,7 @@
 //!     let exchanges = vec![
 //!         exchange("batch.examples"),
 //!     ];
-//!     let client = ClientBuilder::new()
+//!     let client = Client::builder()
 //!         .connection_url("amqp://localhost/%2f")
 //!         .exchanges(exchanges)
 //!         .build();
@@ -100,5 +100,5 @@ pub use client::{Client, ClientBuilder};
 pub use error::Error;
 pub use job::{Job, Perform, Priority};
 pub use query::{job, Query};
-pub use rabbitmq::{exchange, queue, ExchangeBuilder, QueueBuilder};
+pub use rabbitmq::{exchange, queue, Exchange, ExchangeBuilder, Queue, QueueBuilder};
 pub use worker::{Worker, WorkerBuilder};
