@@ -1,104 +1,108 @@
-//! Batch is a distributed job queue/task queue library.
+//! Batch is a background job library.
 //!
-//! This library allows you to send a job to a RabbitMQ broker, so that a worker will be able
-//! to pull it and execute the associated handler. It leverages the `futures` and `tokio-core`
-//! crates to provide asynchronous I/O operations.
+//! Batch allow a program (the *"Client"*) to defer a unit of work (the *"Job"*), until a background process (the
+//! *"Worker"*)  picks it up and executes it. This is very common in web development where you don't want to slow down
+//! an HTTP request for a behaviour that doesn't has to be done synchronously (e.g: sending a mail when a user signs
+//! up).
+//!
+//! Batch provides you with adapters for popular message brokers and an implementation of a `Worker` that should work
+//! well enough in most situations:
+//!
+//! * [RabbitMQ](rabbitmq/index.html)
+//! * Faktory
+//! * Amazon SQS
 //!
 //! # Example
 //!
 //! ```rust
-//! #[macro_use]
 //! extern crate batch;
-//! # extern crate failure;
-//! extern crate futures;
-//! #[macro_use]
-//! extern crate lazy_static;
 //! #[macro_use]
 //! extern crate serde;
 //! extern crate tokio;
 //!
-//! use batch::{exchange, job, Client};
-//! # use failure::Error;
-//! use futures::Future;
+//! use batch::{job, Declare};
+//! use batch::rabbitmq::{self, exchanges};
+//! use tokio::prelude::*;
 //!
-//! #[derive(Serialize, Deserialize, Job)]
-//! #[job_routing_key = "hello-world"]
-//! struct SayHello {
-//!     to: String,
+//! exchanges! {
+//!     Notifications {
+//!         name = "notifications"
+//!     }
+//! }
+//!
+//! #[job(name = "batch-example.say-hello")]
+//! fn say_hello(name: String) {
+//!     println!("Hello {}!", name);
 //! }
 //!
 //! fn main() {
-//!     let exchanges = vec![
-//!         exchange("batch.examples"),
-//!     ];
-//!     let client = Client::builder()
-//!         .connection_url("amqp://localhost/%2f")
-//!         .exchanges(exchanges)
-//!         .build();
-//!     let send = client.and_then(|client| {
-//!         let to = "Ferris".to_string();
+//!     let conn = rabbitmq::Connection::open("amqp://guest:guest@localhost/");
+//!     let notifications = conn.and_then(|mut conn| Notifications::declare(&mut conn));
+//!     let send = notifications.and_then(|notifications| {
+//!         use batch::dsl::*;
 //!
-//!         job(SayHello { to }).exchange("batch.example").send(&client)
-//!     }).map_err(|e| eprintln!("Couldn't publish message: {}", e));
+//!         notifications.with(say_hello(String::from("Ferris"))).deliver()
+//!     });
 //!
 //! # if false {
-//!     tokio::run(send);
+//!     tokio::run(
+//!         send.map_err(|e| eprintln!("Couldn't publish message: {}", e))
+//!     );
 //! # }
 //! }
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/batch/0.1.1")]
+#![doc(html_root_url = "https://docs.rs/batch/0.2.0")]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
-#![allow(unused_imports)]
-#![allow(unknown_lints)]
 
-extern crate amq_protocol;
-extern crate bytes;
-#[cfg(test)]
-extern crate env_logger;
-#[macro_use]
+#[cfg(feature = "codegen")]
+extern crate batch_codegen;
+extern crate batch_core;
+#[cfg(feature = "rabbitmq")]
+extern crate batch_rabbitmq;
+#[cfg(feature = "rabbitmq")]
+extern crate batch_rabbitmq_codegen;
+#[cfg(feature = "worker")]
+extern crate batch_worker;
+
 extern crate failure;
 extern crate futures;
-extern crate lapin_futures as lapin;
-#[macro_use]
-extern crate log;
-extern crate native_tls;
-extern crate num_cpus;
-#[macro_use]
 extern crate serde;
-extern crate serde_json;
-#[cfg(test)]
-extern crate tokio;
-extern crate tokio_executor;
-extern crate tokio_io;
-extern crate tokio_reactor;
-extern crate tokio_tcp;
-extern crate tokio_tls;
-extern crate uuid;
-extern crate wait_timeout;
 
-#[cfg(feature = "codegen")]
-#[macro_use]
-extern crate batch_codegen;
-
-#[cfg(feature = "codegen")]
+// Not public API.
 #[doc(hidden)]
-pub use batch_codegen::*;
+pub mod export {
+    pub use failure::Error;
+    pub use futures::future::ok;
+    pub use futures::Future;
+    pub use futures::IntoFuture;
+    pub use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    pub use std::boxed::Box;
+    pub use std::marker::Send;
+    pub use std::result::Result;
+}
 
-use serde_json::de;
-use serde_json::ser;
+#[cfg(feature = "codegen")]
+pub use batch_codegen::job;
 
-mod client;
-mod error;
-mod job;
-mod query;
-mod rabbitmq;
-mod worker;
+pub use batch_core::{
+    dsl, Callbacks, Consumer, Declarator, Declare, Delivery, Dispatch, Factory, Job, Priority,
+    Properties, Publisher, ToConsumer, ToPublisher,
+};
 
-pub use client::{Client, ClientBuilder};
-pub use error::Error;
-pub use job::{Job, Perform, Priority};
-pub use query::{job, Query};
-pub use rabbitmq::{exchange, queue, Exchange, ExchangeBuilder, Queue, QueueBuilder};
-pub use worker::{Worker, WorkerBuilder};
+/// The prelude module for batch.
+pub mod prelude {}
+
+/// RabbitMQ adapter for batch.
+#[cfg(feature = "rabbitmq")]
+pub mod rabbitmq {
+    pub use batch_rabbitmq::{
+        Connection, Exchange, ExchangeBuilder, ExchangeKind, Query, Queue, QueueBuilder,
+    };
+
+    pub use batch_rabbitmq_codegen::{exchanges, queues};
+}
+
+#[cfg(feature = "worker")]
+pub use batch_worker::Worker;

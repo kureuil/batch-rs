@@ -14,34 +14,27 @@
 [appveyor-badge]: https://ci.appveyor.com/api/projects/status/p8390hfhs1ndmrv9/branch/master?svg=true
 [appveyor-url]: https://ci.appveyor.com/project/kureuil/batch-rs/branch/master
 
-A distributed task queue library written in Rust.
+A background job library written in Rust.
 
-Batch allows you to defer work to worker processes, by sending messages to a RabbitMQ broker.
-It is a type-safe library that favors safety over performance in order to minimize risk and
-avoid mistakes. It leverages the [`futures`] & [`tokio`] crates to provide asynchronous
-operations to the user.
+Batch allows you to defer jobs to worker processes, by sending messages to a broker. It is a type-safe library that favors safety over performance in order to minimize risk and avoid mistakes. It is completely asynchronous and is based on the [`tokio`] runtime.
 
-[`futures`]: https://crates.io/crates/futures
 [`tokio`]: https://crates.io/crates/tokio
 
 ## Installation
+
+**Minimum Rust Version:** 1.30
 
 Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-batch = "0.1"
+batch = "0.2"
 ```
-
-> **Note**: Task serialization depends on [`serde`](https://serde.rs/) & [`lazy_static`](https://crates.io/crates/lazy_static), so you will have to add them to your project's dependencies as well.
 
 Then add this to your crate root:
 
 ```rust
-#[macro_use]
 extern crate batch;
-#[macro_use]
-extern crate lazy_static;
 ```
 
 Examples are available on [GitHub][gh-examples] or you can continue and read the [Getting Started][getting-started] guide.
@@ -51,7 +44,9 @@ Examples are available on [GitHub][gh-examples] or you can continue and read the
 
 ## Features
 
-* `codegen` *(enabled by default)*: Automatically re-exports the procedurals macros of `batch-codegen` from the `batch` crate.
+* `codegen`: *(enabled by default)*: Enables the use of the `job` procedural macro.
+* `rabbitmq` *(disabled by default)*: Adapter to use [RabbitMQ](https://www.rabbitmq.com/) as a message broker.
+* `worker` *(disabled by default)*: A forking worker implementation.
 
 ## License
 
@@ -66,6 +61,4 @@ at your option.
 
 ## Contribution
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

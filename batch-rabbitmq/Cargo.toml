@@ -1,0 +1,25 @@
+[package]
+name = "batch-rabbitmq"
+description = "Rabbitmq adapter for batch"
+repository = "https://github.com/kureuil/batch-rs"
+version = "0.2.0" # remember to update html_root_url
+license = "MIT/Apache-2.0"
+authors = ["Louis Person <louis@person.guru>"]
+
+[dependencies]
+amq-protocol = "0.22"
+batch-core = { version = "0.2", path = "../batch-core" }
+bytes = "0.4"
+failure = "0.1"
+futures = "0.1"
+lapin-futures = "0.13"
+log = "0.4"
+native-tls = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio-executor = "0.1"
+tokio-io = "0.1"
+tokio-reactor = "0.1"
+tokio-tcp = "0.1"
+tokio-tls = "0.1"
+uuid = "0.6"

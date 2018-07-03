@@ -1,0 +1,14 @@
+[package]
+name = "batch-example-rabbitmq-warp"
+version = "0.2.0"
+authors = ["Louis Person <louis@person.guru>"]
+publish = false
+
+[dependencies]
+batch = { path = "../../", features = ["rabbitmq", "worker"] }
+env_logger = "0.5"
+failure = "0.1"
+futures = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+tokio = "0.1"
+warp = "0.1.2"

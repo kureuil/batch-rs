@@ -1,0 +1,15 @@
+[package]
+name = "batch-worker"
+description = "A forking worker for the `batch` library"
+repository = "https://github.com/kureuil/batch-rs"
+version = "0.2.0" # remember to update html_root_url
+license = "MIT/Apache-2.0"
+authors = ["Louis Person <louis@person.guru>"]
+
+[dependencies]
+batch-core = { version = "0.2", path = "../batch-core" }
+failure = "0.1"
+futures = "0.1"
+log = "0.4"
+tokio = "0.1"
+wait-timeout = "0.1.5"
