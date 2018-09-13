@@ -81,6 +81,7 @@ pub mod export {
     pub use std::boxed::Box;
     pub use std::marker::Send;
     pub use std::result::Result;
+    pub use std::time::Duration;
 }
 
 #[cfg(feature = "codegen")]

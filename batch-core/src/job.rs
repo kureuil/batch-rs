@@ -32,21 +32,6 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     /// A should-be-unique human-readable ID for this job.
     const NAME: &'static str;
 
-    /// The number of times this job must be retried in case of error.
-    ///
-    /// You probably should be using the method `retries` instead.
-    const RETRIES: u32 = 3;
-
-    /// An optional duration representing the time allowed for this job's handler to complete.
-    ///
-    /// You probably should be using the method `timeout` instead.
-    const TIMEOUT: Duration = Duration::from_secs(30 * 60);
-
-    /// The priority associated to this job.
-    ///
-    /// You probably should be using the method `priority` instead.
-    const PRIORITY: Priority = Priority::Normal;
-
     /// The return type of the `perform` method.
     type PerformFuture: Future<Item = (), Error = Error> + Send + 'static;
 
@@ -57,24 +42,30 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     ///
     /// This function is meant to be overriden by the user to return a value different from the associated
     /// constant depending on the contents of the actual job.
+    ///
+    /// By default, a job will be retried 25 times.
     fn retries(&self) -> u32 {
-        Self::RETRIES
+        25
     }
 
     /// An optional duration representing the time allowed for this job's handler to complete.
     ///
     /// This function is meant to be overriden by the user to return a value different from the associated
     /// constant depending on the contents of the actual job.
+    ///
+    /// By default, a job is allowed to run 30 minutes.
     fn timeout(&self) -> Duration {
-        Self::TIMEOUT
+        Duration::from_secs(30 * 60)
     }
 
     /// The priority associated to this job.
     ///
     /// This function is meant to be overriden by the user to return a value different from the associated
     /// constant depending on the contents of the actual job.
+    ///
+    /// By default, a job is assigned the `Normal` priority.
     fn priority(&self) -> Priority {
-        Self::PRIORITY
+        Priority::Normal
     }
 }
 

@@ -47,6 +47,72 @@ fn send_hello(user_id: i32, repository: UserRepository, mailer: Mailer) {
 
 In the example above, Batch will only put the `user_id` parameter in the underlying structure, and will fetch the values for the `repository` and the `mailer` values when performing the job. These values are registered on the executor of the job which more often than not will be Batch's own [`Worker`].
 
+## Configuring the job
+
+### Changing the number of retries
+
+By default, a job will be tried 25 times before being declared failed and dropped into a dead-letter queue. This gives you plenty of time to fix your job's implementation. If you wish to change this number, you can do so by using the `retries` parameter of the job procedural macro:
+
+```rust
+extern crate batch;
+
+use batch::job;
+
+#[job(name = "batch-example.send-hello", retries = 10)]
+fn send_hello(to: String) {
+	println!("Hello {}", to);
+}
+
+#[job(name = "batch-example.send-goodbye", retries = 50)]
+fn send_goodbye(to: String) {
+	println!("Goodbye {}", to);
+}
+```
+
+### Changing the timeout for the job's execution
+
+By default, a job is given 30 minutes to complete. If you wish to change this number, you can do so by using the `timeout` parameter of the `job` procedural macro with the number of seconds the job should be allowed to run:
+
+```rust
+extern crate batch;
+
+use batch::job;
+
+// This job will have 1 minute (60 seconds) to complete.
+#[job(name = "batch-example.send-hello", timeout = 60)]
+fn send_hello(to: String) {
+	println!("Hello {}", to);
+}
+
+// This job will have 3 hours (10800 seconds) to complete.
+#[job(name = "batch-example.send-goodbye", timeout = 10800)]
+fn send_goodbye(to: String) {
+	println!("Goodbye {}", to);
+}
+```
+
+### Changing the job priority
+
+By default, a job is assigned the `Normal` priority. If you wish to change this, you can use the `priority` parameter of the `job` procedural macro with one of `trivial`, `low`, `normal`, `high`, `critical`:
+
+```rust
+extern crate batch;
+
+use batch::job;
+
+// This job will be assigned the `low` priority.
+#[job(name = "batch-example.send-hello", priority = low)]
+fn send_hello(to: String) {
+	println!("Hello {}", to);
+}
+
+// This job will be assigned the `critical` priority.
+#[job(name = "batch-example.send-goodbye", priority = critical)]
+fn send_goodbye(to: String) {
+	println!("Goodbye {}", to);
+}
+```
+
 ---
 
 ## Under the hood
@@ -58,7 +124,7 @@ Annotating a function with the [`job`] procedural macro will do two things:
 
 ## Get or set the underlying struct of a job
 
-When invoked, [`job`] procedural macro will generate a new structure declaration containing the arguments for the job, and implementing the [`Job`] trait. The name of this structure is generated using the name of the function and transform it to Pascal Case, which for our first example would give:
+When invoked, [`job`] procedural macro will generate a new structure declaration containing the arguments for the job, and implementing the [`Job`] trait. The name of this structure is the same as the function is comes from. This is made possible by the fact that in Rust, structures and functions don't share the same namespace:
 
 ```rust
 extern crate batch;
@@ -74,17 +140,17 @@ fn say_hello(name: String) {
 
 # mod generated_do_not_copy_paste_this_please {
 #[derive(Serialize, Deserialize)]
-struct SayHello {
+struct say_hello {
 	name: String
 }
 
-impl batch::Job for SayHello {
+impl batch::Job for say_hello {
 	// ...
 }
 # }
 ```
 
-However, this simple naming scheme can sometimes conflict with already existing code. To overcome this problem, Batch allows you to set the name of the structure that will be generated, by using the `wrapper` parameter:
+Hopefully, this simple naming scheme should not conflict with already existing code. If you ever happen to be in this situation, Batch allows you to set the name of the structure that will be generated, by using the `wrapper` parameter:
 
 ```rust
 extern crate batch;
