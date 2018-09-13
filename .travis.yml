@@ -64,8 +64,8 @@ before_install:
   fi
 
 script:
-- cargo build --all
-- cargo test --all
+- cargo build --all --all-features
+- cargo test --all --all-features
 
 before_deploy:
 - export MDBOOK_VERSION=0.2.1
