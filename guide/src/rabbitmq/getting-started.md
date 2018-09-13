@@ -32,7 +32,7 @@ use batch::job;
 use batch::rabbitmq;
 use tokio::prelude::*;
 
-#[job("batch-example.say-hello")]
+#[job(name = "batch-example.say-hello")]
 fn say_hello(name: String) {
     println!("Hello {}!", name);
 }
@@ -58,7 +58,7 @@ Now that we have our job, we want to send it to our RabbitMQ server. To do that 
 extern crate batch;
 extern crate tokio;
 
-use batch::job;
+use batch::{job, Declare};
 use batch::rabbitmq::{self, exchanges};
 use tokio::prelude::*;
 
@@ -68,18 +68,21 @@ exchanges! {
     }
 }
 
-#[job("batch-example.say-hello")]
+#[job(name = "batch-example.say-hello")]
 fn say_hello(name: String) {
     println!("Hello {}!", name);
 }
 
 fn main() {
     let f = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .and_then(|conn| Example::declare(&mut conn))
+        .and_then(|mut conn| Example::declare(&mut conn))
         .map(|exchange| {
-            let job = say_hello("Ferris");
+            use batch::dsl::*;
+
+            let job = say_hello("Ferris".to_string());
             exchange.with(job).deliver()
         })
+        .map(|_| ())
         .map_err(|e| eprintln!("An error occured while connecting to RabbitMQ: {}", e));
 
     tokio::run(f);

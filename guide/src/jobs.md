@@ -139,13 +139,8 @@ fn say_hello(name: String) {
 // Would generate code roughly equivalent to:
 
 # mod generated_do_not_copy_paste_this_please {
-#[derive(Serialize, Deserialize)]
 struct say_hello {
 	name: String
-}
-
-impl batch::Job for say_hello {
-	// ...
 }
 # }
 ```
@@ -165,13 +160,8 @@ fn say_hello(name: String) {
 // Would generate code roughly equivalent to:
 
 # mod generated_do_not_copy_paste_this_please {
-#[derive(Serialize, Deserialize)]
 struct MySuperAwesomeJob {
 	name: String
-}
-
-impl batch::Job for MySuperAwesomeJob {
-	// ...
 }
 # }
 ```

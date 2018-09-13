@@ -35,12 +35,11 @@ batch-worker = { version = "0.2", path = "./batch-worker", optional = true }
 failure = "0.1"
 futures = "0.1.20"
 serde = { version = "1.0", features = ["derive"] }
-
-[dev-dependencies]
-tokio = "0.1"
+tokio = { version = "0.1", optional = true }
 
 [features]
 default = ["codegen"]
 codegen = ["batch-codegen"]
 rabbitmq = ["batch-rabbitmq", "batch-rabbitmq-codegen"]
+runtime = ["tokio"]
 worker = ["batch-worker"]

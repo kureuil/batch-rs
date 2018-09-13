@@ -6,6 +6,7 @@ When you're using RabbitMQ, an exchange is the place where you will publish your
 extern crate batch;
 extern crate tokio;
 
+use batch::Declare;
 use batch::rabbitmq::{self, exchanges};
 use tokio::prelude::Future;
 
@@ -16,9 +17,10 @@ exchanges! {
 }
 
 fn main() {
-    let fut = rabbitmq::Connection::open()
+    let fut = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
         .and_then(|mut conn| Example::declare(&mut conn))
-        .and_then(|_transcoding| {
+        .and_then(|transcoding| {
+#           drop(transcoding);
             /* The `Transcoding` exchange is now declared. */
             Ok(())
         })

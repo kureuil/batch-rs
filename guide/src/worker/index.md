@@ -12,9 +12,9 @@ The easiest way to integrate the forking worker is to create a new binary (e.g: 
 extern crate batch;
 extern crate tokio;
 
-use batch::{job, signature};
+use batch::{job, Declare};
 use batch::rabbitmq::{self, exchanges, queues};
-use batch::worker::Worker;
+use batch::Worker;
 use tokio::prelude::*;
 
 exchanges! {
@@ -25,16 +25,16 @@ exchanges! {
 
 queues! {
 	ExampleQueue {
-		name = "example"
-		bindings = [
-			super::ExampleExchange = [
-				signature!(::say_hello)
+		name = "example",
+		bindings = {
+			ExampleExchange = [
+				say_hello
 			]
 		}
 	}
 }
 
-#[job("batch-example.say-hello")]
+#[job(name = "batch-example.say-hello")]
 fn say_hello(name: String) {
 	println!("Hello {}!", name);
 }
@@ -63,11 +63,12 @@ Some of your jobs will undoubtly have to depend on values that can't be serializ
 extern crate batch;
 extern crate tokio;
 
-use batch::{exchanges, job, queues, rabbitmq};
-use tokio::prelude::Future;
+use batch::{job, Declare};
+use batch::rabbitmq::{self, exchanges, queues};
+use tokio::prelude::*;
 #
 # mod diesel {
-# 	struct PgConn;
+# 	pub struct PgConn;
 # }
 
 exchanges! {
@@ -81,7 +82,7 @@ queues! {
 		name = "maintenance",
 		bindings = {
 			MaintenanceEx = [
-				CountActiveUsers
+				count_active_users
 			]
 		}
 	}
@@ -100,7 +101,7 @@ fn init_database_conn() -> diesel::PgConn {
 
 fn main() {
 	let fut = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-		.and_then(|conn|
+		.map(|conn|
 			batch::Worker::new(conn)
 				.provide(init_database_conn)
 		)
