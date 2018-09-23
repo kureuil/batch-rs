@@ -1,53 +1,55 @@
 //! Batch Worker.
-//!
-//! The worker is responsible for polling the broker for jobs, deserializing them and execute
-//! them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
-//! `Broker` implementation is completely customizable by the user.
-//!
-//! # Trade-offs
-//!
-//! The most important thing to know about the worker is that it favours safety over performance.
-//! For each incoming job, it will spawn a new process whose only goal is to perform the job.
-//! Even if this is slower than just executing the function in a threadpool, it allows much more
-//! control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
-//! protects against unpredictable crashes.
 
-extern crate batch_core as batch;
-#[macro_use]
-extern crate failure;
-extern crate futures;
-#[macro_use]
-extern crate log;
-extern crate tokio;
-extern crate wait_timeout;
-
+use failure::{bail, Error};
+use futures::{self, Future, Stream};
+use log::{debug, error, warn};
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::fmt;
 use std::io::{self, Read};
 use std::process;
 use std::result::Result;
 use std::sync::mpsc;
-
-use batch::{Delivery, Factory};
-use failure::Error;
-use futures::{Future, Stream};
+use tokio_executor;
 use wait_timeout::ChildExt;
 
-pub struct Worker<Conn>
-where
-    Conn: batch::ToConsumer + Send + 'static,
-{
+use {Delivery, Factory};
+
+/// The worker is responsible for polling the broker for jobs, deserializing them and execute
+/// them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
+/// `Broker` implementation is completely customizable by the user.
+///
+/// The most important thing to know about the worker is that it favours safety over performance.
+/// For each incoming job, it will spawn a new process whose only goal is to perform the job.
+/// Even if this is slower than just executing the function in a threadpool, it allows much more
+/// control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
+/// protects against unpredictable crashes.
+pub struct Worker<Conn> {
     connection: Conn,
     queues: HashSet<String>,
     state: Factory,
     callbacks:
-        HashMap<String, fn(&[u8], batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>>,
+        HashMap<String, fn(&[u8], ::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
+}
+
+impl<Conn> fmt::Debug for Worker<Conn>
+where
+    Conn: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Worker")
+            .field("connection", &self.connection)
+            .field("queues", &self.queues)
+            .field("callbacks", &self.callbacks.keys())
+            .finish()
+    }
 }
 
 impl<Conn> Worker<Conn>
 where
-    Conn: batch::ToConsumer + Send + 'static,
+    Conn: ::ToConsumer + Send + 'static,
 {
+    /// Create a new Worker.
     pub fn new(connection: Conn) -> Self {
         Worker {
             connection,
@@ -57,10 +59,11 @@ where
         }
     }
 
+    /// Declare a new resource to consume from.
     pub fn declare<D>(mut self) -> impl Future<Item = Self, Error = Error> + Send
     where
-        D: batch::Declare + batch::Callbacks,
-        Conn: batch::Declarator<D::Input, D::Output> + Send + 'static,
+        D: ::Declare + ::Callbacks,
+        Conn: ::Declarator<D::Input, D::Output> + Send + 'static,
     {
         D::declare(&mut self.connection).and_then(|resource| {
             self.queues.insert(D::NAME.into());
@@ -78,6 +81,7 @@ where
         })
     }
 
+    /// Provide a constructor for a given type.
     pub fn provide<F, T>(mut self, init: F) -> Self
     where
         T: 'static,
@@ -87,6 +91,7 @@ where
         self
     }
 
+    /// Consume deliveries from all of the declared resources.
     pub fn run(self) -> impl Future<Item = (), Error = Error> + Send {
         if let Ok(job) = env::var("BATCHRS_WORKER_IS_EXECUTOR") {
             let (tx, rx) = mpsc::channel::<Result<(), Error>>();
@@ -95,7 +100,7 @@ where
                 .execute(job)
                 .map(move |_| tx.send(Ok(())).unwrap())
                 .map_err(move |e| tx2.send(Err(e)).unwrap());
-            tokio::spawn(f);
+            tokio_executor::spawn(f);
             rx.recv().unwrap().unwrap();
             process::exit(0);
         }
@@ -110,7 +115,7 @@ where
                     debug!("delivery; job_id={}", delivery.properties().id);
                     // TODO: use tokio_threadpool::blocking instead of spawn a task for each execution?
                     let task = futures::lazy(
-                        move || -> Box<Future<Item = (), Error = Error> + Send> {
+                        move || -> Box<dyn Future<Item = (), Error = Error> + Send> {
                             match spawn(&delivery) {
                                 Err(e) => {
                                     error!("spawn: {}; job_id={}", e, delivery.properties().id);
@@ -137,7 +142,7 @@ where
                     ).map_err(|e| {
                         error!("An error occured while informing the broker of the execution status: {}", e)
                     });
-                    tokio::spawn(task);
+                    tokio_executor::spawn(task);
                     Ok(())
                 })
             })

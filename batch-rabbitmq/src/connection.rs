@@ -6,7 +6,7 @@ use std::net;
 use std::str::FromStr;
 
 use amq_protocol::uri::{AMQPScheme, AMQPUri};
-use batch_core as batch;
+use batch;
 use failure::Error;
 use futures::sync::mpsc::{channel, Sender};
 use futures::{future, Future, IntoFuture, Stream};

@@ -1,8 +1,9 @@
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate serde;
 
 pub mod queues {
-    use batch::rabbitmq::queues;
+    use batch_rabbitmq::queues;
 
     queues! {
         Transcoding {
@@ -19,7 +20,7 @@ pub mod queues {
 }
 
 pub mod exchanges {
-    use batch::rabbitmq::exchanges;
+    use batch_rabbitmq::exchanges;
 
     exchanges! {
         Transcoding {

@@ -1,18 +1,19 @@
 extern crate batch;
 extern crate batch_example_rabbitmq_warp as example;
+extern crate batch_rabbitmq;
 extern crate tokio;
 extern crate warp;
 
 use std::sync::Arc;
 
 use batch::dsl::{Deliver, With};
-use batch::{rabbitmq, Declare};
+use batch::Declare;
 use warp::{Filter, Future};
 
 use example::{exchanges, jobs};
 
 fn main() {
-    let task = rabbitmq::Connection::open("amqp://guest:guest@localhost/%2f")
+    let task = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost/%2f")
         .and_then(|mut conn| exchanges::Transcoding::declare(&mut conn))
         .map_err(|e| println!("An error occured while declaring the exchange: {}", e))
         .and_then(|transcoding| {

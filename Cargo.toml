@@ -2,10 +2,8 @@
 members = [
 	"./",
 	"batch-codegen",
-	"batch-core",
 	"batch-rabbitmq",
 	"batch-rabbitmq-codegen",
-	"batch-worker",
 	"examples/rabbitmq-simple",
 	"examples/rabbitmq-warp",
 ]
@@ -28,18 +26,16 @@ appveyor = { repository = "kureuil/batch-rs", id = "p8390hfhs1ndmrv9" }
 
 [dependencies]
 batch-codegen = { version = "0.2", path = "./batch-codegen", optional = true }
-batch-core = { version = "0.2", path = "./batch-core" }
-batch-rabbitmq = { version = "0.2", path = "./batch-rabbitmq", optional = true }
-batch-rabbitmq-codegen = { version = "0.2", path = "./batch-rabbitmq-codegen", optional = true }
-batch-worker = { version = "0.2", path = "./batch-worker", optional = true }
 failure = "0.1"
 futures = "0.1.20"
+log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "0.1", optional = true }
+tokio-executor = "0.1"
+uuid = { version = "0.6", features = ["v4", "serde"] }
+wait-timeout = "0.1.5"
 
 [features]
 default = ["codegen"]
 codegen = ["batch-codegen"]
-rabbitmq = ["batch-rabbitmq", "batch-rabbitmq-codegen"]
 runtime = ["tokio"]
-worker = ["batch-worker"]

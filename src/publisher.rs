@@ -10,12 +10,3 @@ pub trait Publisher:
     /// The type of dispatches published to the broker.
     type Dispatch: Dispatch;
 }
-
-/// Publish a dispatch to a broker.
-pub trait ToPublisher {
-    /// The return type of the `publisher` method.
-    type Publisher: Publisher;
-
-    /// Publish the given message to a broker.
-    fn to_publisher(&mut self) -> Self::Publisher;
-}

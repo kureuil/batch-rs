@@ -28,16 +28,22 @@ pub trait Declare: Sized {
     ) -> Self::DeclareFuture;
 }
 
+/// A replacement for the Never type.
+///
+/// Currently used when creating functions to avoid the turbofish syntax.
+pub enum DeclareMarker {}
+
 /// A trait for declaring resources.
 ///
 /// This trait is meant to be implemented by adapters to message brokers.
-pub trait Declarator<I, O> {
+pub trait Declarator<In, Out> {
     /// The return type of the method.
-    type DeclareFuture: Future<Item = O, Error = Error> + Send;
+    type DeclareFuture: Future<Item = Out, Error = Error> + Send;
 
     /// Declare the given resource.
-    fn declare(&mut self, resource: I) -> Self::DeclareFuture;
+    fn declare(&mut self, resource: In) -> Self::DeclareFuture;
 }
+
 
 /// Get the callbacks associated to a resource.
 ///
@@ -47,13 +53,13 @@ pub trait Callbacks {
     type Iterator: Iterator<
         Item = (
             String,
-            fn(&[u8], Factory) -> Box<Future<Item = (), Error = Error> + Send>,
+            fn(&[u8], Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
         ),
     >;
 
     /// Get a list of callbacks.
     ///
-    /// A callback is represented by a `(String, Box<CallbackFn<Self::Delivery> + Send>)` tuple. The first element is
+    /// A callback is represented by a `(String, Fn(&[u8], Factory) -> Future)` tuple. The first element is
     /// the key associated to the callback, typically this is the name of the job. The second element is the proper
     /// callback function. A callback function takes two parameters:
     /// * `payload`: A slice of bytes, it is the serialized representation of the to be handled job.

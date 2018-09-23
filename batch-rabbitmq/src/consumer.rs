@@ -1,6 +1,6 @@
 use std::fmt;
 
-use batch_core as batch;
+use batch;
 use failure::Error;
 use futures::sync::mpsc;
 use futures::{task, Async, Future, Poll, Stream};

@@ -1,5 +1,5 @@
 [package]
-name = "batch-example-warp"
+name = "batch-example-rabbitmq-warp"
 version = "0.2.0"
 authors = ["Louis Person <louis@person.guru>"]
 publish = false
@@ -13,7 +13,8 @@ name = "worker"
 doc = false
 
 [dependencies]
-batch = { path = "../../", version = "0.2" }
+batch = { version = "0.2", path = "../../" }
+batch-rabbitmq = { version = "0.2", path = "../../batch-rabbitmq" }
 env_logger = "0.5"
 failure = "0.1"
 futures = "0.1"

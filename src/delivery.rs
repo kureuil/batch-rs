@@ -11,10 +11,10 @@ pub trait Delivery: Send {
     /// The return type of the `reject` method.
     type RejectFuture: Future<Item = (), Error = Error> + Send;
 
-    /// Get a reference to the serialized `Job` instance associated to this delivery.
+    /// Get the serialized `Job` instance associated to this delivery.
     fn payload(&self) -> &[u8];
 
-    /// Get a reference to the `Properties` instance associated to this delivery.
+    /// Get the `Properties` instance associated to this delivery.
     fn properties(&self) -> &Properties;
 
     /// Ack the delivery.

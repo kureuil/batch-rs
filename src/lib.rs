@@ -58,52 +58,35 @@
 
 #[cfg(feature = "codegen")]
 extern crate batch_codegen;
-extern crate batch_core;
-#[cfg(feature = "rabbitmq")]
-extern crate batch_rabbitmq;
-#[cfg(feature = "rabbitmq")]
-extern crate batch_rabbitmq_codegen;
-#[cfg(feature = "worker")]
-extern crate batch_worker;
-
 extern crate failure;
 extern crate futures;
+extern crate log;
 extern crate serde;
+extern crate tokio_executor;
+extern crate wait_timeout;
+extern crate uuid;
 
+mod consumer;
+mod declare;
+mod delivery;
+mod dispatch;
+pub mod dsl;
 // Not public API.
 #[doc(hidden)]
-pub mod export {
-    pub use failure::Error;
-    pub use futures::future::ok;
-    pub use futures::Future;
-    pub use futures::IntoFuture;
-    pub use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    pub use std::boxed::Box;
-    pub use std::marker::Send;
-    pub use std::result::Result;
-    pub use std::time::Duration;
-}
+pub mod export;
+mod factory;
+mod job;
+mod publisher;
+mod worker;
 
 #[cfg(feature = "codegen")]
 pub use batch_codegen::job;
+pub use consumer::{Consumer, ToConsumer};
+pub use declare::{Callbacks, Declarator, Declare};
+pub use delivery::Delivery;
+pub use dispatch::Dispatch;
+pub use factory::Factory;
+pub use job::{Job, Priority, Properties};
+pub use publisher::Publisher;
 
-pub use batch_core::{
-    dsl, Callbacks, Consumer, Declarator, Declare, Delivery, Dispatch, Factory, Job, Priority,
-    Properties, Publisher, ToConsumer, ToPublisher,
-};
-
-/// The prelude module for batch.
-pub mod prelude {}
-
-/// RabbitMQ adapter for batch.
-#[cfg(feature = "rabbitmq")]
-pub mod rabbitmq {
-    pub use batch_rabbitmq::{
-        Connection, Exchange, ExchangeBuilder, ExchangeKind, Query, Queue, QueueBuilder,
-    };
-
-    pub use batch_rabbitmq_codegen::{exchanges, queues};
-}
-
-#[cfg(feature = "worker")]
-pub use batch_worker::Worker;
+pub use worker::Worker;

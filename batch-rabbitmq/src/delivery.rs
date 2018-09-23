@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
-use batch_core as batch;
+use batch;
 use failure::Error;
 use futures::sync::mpsc;
 use futures::{Future, Poll, Sink};

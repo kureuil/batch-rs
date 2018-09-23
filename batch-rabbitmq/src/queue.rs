@@ -2,7 +2,7 @@ use std::collections::btree_map::IntoIter;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use batch_core as batch;
+use batch;
 use failure::Error;
 use futures::{future, Future};
 use serde::{Deserialize, Deserializer};

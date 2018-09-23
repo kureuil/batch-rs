@@ -1,4 +1,4 @@
-use batch_core as batch;
+use batch;
 use failure::Error;
 use lapin::channel::BasicProperties;
 use lapin::types::{AMQPValue, FieldTable};

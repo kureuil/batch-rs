@@ -235,23 +235,23 @@ impl ToTokens for Queue {
 
         let output = quote! {
             pub struct #ident {
-                inner: ::batch::rabbitmq::Queue
+                inner: ::batch_rabbitmq::Queue
             }
 
             const #dummy_const: () = {
                 impl ::batch::Declare for #ident {
                     const NAME: &'static str = #name;
 
-                    type Input = ::batch::rabbitmq::QueueBuilder;
+                    type Input = ::batch_rabbitmq::QueueBuilder;
 
-                    type Output = ::batch::rabbitmq::Queue;
+                    type Output = ::batch_rabbitmq::Queue;
 
                     type DeclareFuture = ::batch::export::Box<::batch::export::Future<Item = Self, Error = ::batch::export::Error> + ::batch::export::Send>;
 
                     fn declare(declarator: &mut (impl ::batch::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
                         use ::batch::export::Future;
 
-                        let task = ::batch::rabbitmq::Queue::builder(Self::NAME.into())
+                        let task = ::batch_rabbitmq::Queue::builder(Self::NAME.into())
                             // .with_priorities(true)
                             // .exclusive(true)
                             #bindings
@@ -262,7 +262,7 @@ impl ToTokens for Queue {
                 }
 
                 impl ::batch::Callbacks for #ident {
-                    type Iterator = <::batch::rabbitmq::Queue as ::batch::Callbacks>::Iterator;
+                    type Iterator = <::batch_rabbitmq::Queue as ::batch::Callbacks>::Iterator;
 
                     fn callbacks(&self) -> Self::Iterator {
                         self.inner.callbacks()

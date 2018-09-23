@@ -4,7 +4,7 @@ use std::fmt;
 
 /// A type-aware factory.
 pub struct Factory {
-    inner: HashMap<TypeId, Box<Any + Send + Sync + 'static>>,
+    inner: HashMap<TypeId, Box<dyn Any + Send + Sync + 'static>>,
 }
 
 impl fmt::Debug for Factory {
@@ -13,7 +13,7 @@ impl fmt::Debug for Factory {
     }
 }
 
-struct Constructor<T: 'static>(Box<Fn() -> T + Send + Sync + 'static>);
+struct Constructor<T: 'static>(Box<dyn Fn() -> T + Send + Sync + 'static>);
 
 impl<T: 'static> Constructor<T> {
     fn instantiate(&self) -> T {

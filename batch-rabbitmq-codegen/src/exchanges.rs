@@ -144,12 +144,12 @@ impl parse::Parse for ExchangeKind {
 impl ToTokens for ExchangeKind {
     fn to_tokens(&self, stream: &mut TokenStream) {
         let tokens = match self {
-            ExchangeKind::Direct => quote!(::batch::rabbitmq::ExchangeKind::Direct),
-            ExchangeKind::Fanout => quote!(::batch::rabbitmq::ExchangeKind::Fanout),
-            ExchangeKind::Topic => quote!(::batch::rabbitmq::ExchangeKind::Topic),
-            ExchangeKind::Headers => quote!(::batch::rabbitmq::ExchangeKind::Headers),
+            ExchangeKind::Direct => quote!(::batch_rabbitmq::ExchangeKind::Direct),
+            ExchangeKind::Fanout => quote!(::batch_rabbitmq::ExchangeKind::Fanout),
+            ExchangeKind::Topic => quote!(::batch_rabbitmq::ExchangeKind::Topic),
+            ExchangeKind::Headers => quote!(::batch_rabbitmq::ExchangeKind::Headers),
             ExchangeKind::Custom(kind) => {
-                quote!(::batch::rabbitmq::ExchangeKind::Custom(#kind.into()))
+                quote!(::batch_rabbitmq::ExchangeKind::Custom(#kind.into()))
             }
         };
         stream.extend(tokens);
@@ -194,23 +194,23 @@ impl ToTokens for Exchange {
 
         let output = quote! {
             pub struct #ident {
-                inner: ::batch::rabbitmq::Exchange,
+                inner: ::batch_rabbitmq::Exchange,
             }
 
             const #dummy_const: () = {
                 impl ::batch::Declare for #ident {
                     const NAME: &'static str = #name;
 
-                    type Input = ::batch::rabbitmq::ExchangeBuilder;
+                    type Input = ::batch_rabbitmq::ExchangeBuilder;
 
-                    type Output = ::batch::rabbitmq::Exchange;
+                    type Output = ::batch_rabbitmq::Exchange;
 
                     type DeclareFuture = ::batch::export::Box<::batch::export::Future<Item = Self, Error = ::batch::export::Error> + ::batch::export::Send>;
 
                     fn declare(declarator: &mut (impl ::batch::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
                         use ::batch::export::Future;
 
-                        let task = ::batch::rabbitmq::Exchange::builder(Self::NAME.into())
+                        let task = ::batch_rabbitmq::Exchange::builder(Self::NAME.into())
                             .kind(#kind)
                             .exclusive(#exclusive)
                             .declare(declarator)
@@ -223,7 +223,7 @@ impl ToTokens for Exchange {
                 where
                     J: ::batch::Job
                 {
-                    type Query = ::batch::rabbitmq::Query<J>;
+                    type Query = ::batch_rabbitmq::Query<J>;
 
                     fn with(&self, job: J) -> Self::Query {
                         self.inner.with(job)

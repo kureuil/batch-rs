@@ -8,7 +8,8 @@ authors = ["Louis Person <louis@person.guru>"]
 
 [dependencies]
 amq-protocol = "0.22"
-batch-core = { version = "0.2", path = "../batch-core" }
+batch = { version = "0.2", path = "../" }
+batch-rabbitmq-codegen = { version = "0.2", path = "../batch-rabbitmq-codegen", optional = true }
 bytes = "0.4"
 failure = "0.1"
 futures = "0.1"
@@ -23,3 +24,7 @@ tokio-reactor = "0.1"
 tokio-tcp = "0.1"
 tokio-tls = "0.1"
 uuid = "0.6"
+
+[features]
+default = ["codegen"]
+codegen = ["batch-rabbitmq-codegen"]

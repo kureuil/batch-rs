@@ -5,7 +5,9 @@
 // #![deny(missing_docs)]
 
 extern crate amq_protocol;
-extern crate batch_core;
+extern crate batch;
+#[cfg(feature = "codegen")]
+extern crate batch_rabbitmq_codegen;
 extern crate bytes;
 #[macro_use]
 extern crate failure;
@@ -34,6 +36,8 @@ mod query;
 mod queue;
 mod stream;
 
+#[cfg(feature = "codegen")]
+pub use batch_rabbitmq_codegen::{exchanges, queues};
 pub use connection::Connection;
 pub use delivery::{Acknowledge, Delivery, Reject};
 pub use exchange::{Builder as ExchangeBuilder, Exchange, Kind as ExchangeKind};

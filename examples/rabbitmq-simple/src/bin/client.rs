@@ -1,19 +1,20 @@
 extern crate batch;
-extern crate batch_example_rabbitmq_simple as example;
+extern crate batch_example_rabbitmq_standalone as example;
+extern crate batch_rabbitmq;
 extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate tokio;
 
 use batch::dsl::*;
-use batch::{rabbitmq, Declare};
+use batch::Declare;
 use futures::Future;
 
 use example::{exchanges, jobs};
 
 fn main() {
     env_logger::init();
-    let task = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
+    let task = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
         .and_then(|mut conn| exchanges::Transcoding::declare(&mut conn))
         .and_then(|transcoding| {
             let job =
