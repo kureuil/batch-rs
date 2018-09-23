@@ -88,5 +88,4 @@ pub use dispatch::Dispatch;
 pub use factory::Factory;
 pub use job::{Job, Priority, Properties};
 pub use publisher::Publisher;
-
 pub use worker::Worker;

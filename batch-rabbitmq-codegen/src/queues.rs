@@ -240,6 +240,11 @@ impl ToTokens for Queue {
                 inner: #krate::Queue
             }
 
+            #[doc(hidden)]
+            pub fn #ident(marker: #export::DeclareMarker) -> #ident {
+                match marker {}
+            }
+
             const #dummy_const: () = {
                 impl #export::Declare for #ident {
                     const NAME: &'static str = #name;

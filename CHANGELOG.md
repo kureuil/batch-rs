@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog] and this project adheres to
 ## [Unreleased]
 ### Changed
 - Batch is now split up in multiple crates, making it a lot more modular.
-- **all**: The terminology was changed from "task" to "job": is still conveys the same ideas, but won't collide with futures' terminology of "task".
+- **all**: The terminology was changed from "task" to "job".
 
 ### Added
 - **core**: Added support for job priorities, with 5 levels of granularity: `TRIVIAL`, `LOW`, `NORMAL` (default), `HIGH`, `CRITICAL`.
