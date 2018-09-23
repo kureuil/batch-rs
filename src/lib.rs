@@ -71,7 +71,7 @@ mod declare;
 mod delivery;
 mod dispatch;
 pub mod dsl;
-// Not public API.
+/// Not public API.
 #[doc(hidden)]
 pub mod export;
 mod factory;
@@ -82,7 +82,7 @@ mod worker;
 #[cfg(feature = "codegen")]
 pub use batch_codegen::job;
 pub use consumer::{Consumer, ToConsumer};
-pub use declare::{Callbacks, Declarator, Declare};
+pub use declare::{Callbacks, Declarator, Declare, DeclareMarker};
 pub use delivery::Delivery;
 pub use dispatch::Dispatch;
 pub use factory::Factory;

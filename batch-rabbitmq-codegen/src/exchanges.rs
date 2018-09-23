@@ -186,6 +186,8 @@ impl ToTokens for Exchange {
         let name = &self.name;
         let kind = &self.kind;
         let exclusive = &self.exclusive;
+        let krate = quote!(::batch_rabbitmq);
+        let export = quote!(#krate::export);
 
         let dummy_const = syn::Ident::new(
             &format!("__IMPL_BATCH_EXCHANGE_FOR_{}", ident.to_string()),
@@ -194,23 +196,28 @@ impl ToTokens for Exchange {
 
         let output = quote! {
             pub struct #ident {
-                inner: ::batch_rabbitmq::Exchange,
+                inner: #krate::Exchange,
+            }
+
+            #[doc(hidden)]
+            pub fn #ident(marker: #export::DeclareMarker) -> #ident {
+                match marker {}
             }
 
             const #dummy_const: () = {
-                impl ::batch::Declare for #ident {
+                impl #export::Declare for #ident {
                     const NAME: &'static str = #name;
 
-                    type Input = ::batch_rabbitmq::ExchangeBuilder;
+                    type Input = #krate::ExchangeBuilder;
 
-                    type Output = ::batch_rabbitmq::Exchange;
+                    type Output = #krate::Exchange;
 
-                    type DeclareFuture = ::batch::export::Box<::batch::export::Future<Item = Self, Error = ::batch::export::Error> + ::batch::export::Send>;
+                    type DeclareFuture = #export::Box<#export::Future<Item = Self, Error = #export::Error> + #export::Send>;
 
-                    fn declare(declarator: &mut (impl ::batch::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
-                        use ::batch::export::Future;
+                    fn declare(declarator: &mut (impl #export::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
+                        use #export::Future;
 
-                        let task = ::batch_rabbitmq::Exchange::builder(Self::NAME.into())
+                        let task = #krate::Exchange::builder(Self::NAME.into())
                             .kind(#kind)
                             .exclusive(#exclusive)
                             .declare(declarator)
@@ -219,11 +226,11 @@ impl ToTokens for Exchange {
                     }
                 }
 
-                impl<J> ::batch::dsl::With<J> for #ident
+                impl<J> #export::With<J> for #ident
                 where
-                    J: ::batch::Job
+                    J: #export::Job
                 {
-                    type Query = ::batch_rabbitmq::Query<J>;
+                    type Query = #krate::Query<J>;
 
                     fn with(&self, job: J) -> Self::Query {
                         self.inner.with(job)

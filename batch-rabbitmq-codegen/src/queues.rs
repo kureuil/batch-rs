@@ -227,6 +227,8 @@ impl ToTokens for Queue {
         let ident = &self.ident;
         let name = &self.name;
         let bindings = &self.bindings;
+        let krate = quote!(::batch_rabbitmq);
+        let export = quote!(#krate::export);
 
         let dummy_const = syn::Ident::new(
             &format!("__IMPL_BATCH_QUEUE_FOR_{}", ident.to_string()),
@@ -235,34 +237,34 @@ impl ToTokens for Queue {
 
         let output = quote! {
             pub struct #ident {
-                inner: ::batch_rabbitmq::Queue
+                inner: #krate::Queue
             }
 
             const #dummy_const: () = {
-                impl ::batch::Declare for #ident {
+                impl #export::Declare for #ident {
                     const NAME: &'static str = #name;
 
-                    type Input = ::batch_rabbitmq::QueueBuilder;
+                    type Input = #krate::QueueBuilder;
 
-                    type Output = ::batch_rabbitmq::Queue;
+                    type Output = #krate::Queue;
 
-                    type DeclareFuture = ::batch::export::Box<::batch::export::Future<Item = Self, Error = ::batch::export::Error> + ::batch::export::Send>;
+                    type DeclareFuture = #export::Box<#export::Future<Item = Self, Error = #export::Error> + #export::Send>;
 
-                    fn declare(declarator: &mut (impl ::batch::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
-                        use ::batch::export::Future;
+                    fn declare(declarator: &mut (impl #export::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
+                        use #export::Future;
 
-                        let task = ::batch_rabbitmq::Queue::builder(Self::NAME.into())
+                        let task = #krate::Queue::builder(Self::NAME.into())
                             // .with_priorities(true)
                             // .exclusive(true)
                             #bindings
                             .declare(declarator)
                             .map(|inner| #ident { inner });
-                        ::batch::export::Box::new(task)
+                        #export::Box::new(task)
                     }
                 }
 
-                impl ::batch::Callbacks for #ident {
-                    type Iterator = <::batch_rabbitmq::Queue as ::batch::Callbacks>::Iterator;
+                impl #export::Callbacks for #ident {
+                    type Iterator = <#krate::Queue as #export::Callbacks>::Iterator;
 
                     fn callbacks(&self) -> Self::Iterator {
                         self.inner.callbacks()

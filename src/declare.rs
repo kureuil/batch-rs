@@ -31,6 +31,7 @@ pub trait Declare: Sized {
 /// A replacement for the Never type.
 ///
 /// Currently used when creating functions to avoid the turbofish syntax.
+#[derive(Debug)]
 pub enum DeclareMarker {}
 
 /// A trait for declaring resources.

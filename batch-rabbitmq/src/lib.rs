@@ -32,6 +32,9 @@ mod consumer;
 mod delivery;
 mod dispatch;
 mod exchange;
+/// Not public API.
+#[doc(hidden)]
+pub mod export;
 mod query;
 mod queue;
 mod stream;

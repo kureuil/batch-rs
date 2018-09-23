@@ -198,12 +198,13 @@ impl parse::Parse for Priority {
 
 impl ToTokens for Priority {
     fn to_tokens(&self, dst: &mut TokenStream) {
+        let krate = quote!(::batch);
         let tokens = match *self {
-            Priority::Trivial(ref p) => quote_spanned!(p.span() => ::batch::Priority::Trivial),
-            Priority::Low(ref p) => quote_spanned!(p.span() => ::batch::Priority::Low),
-            Priority::Normal(ref p) => quote_spanned!(p.span() => ::batch::Priority::Normal),
-            Priority::High(ref p) => quote_spanned!(p.span() => ::batch::Priority::High),
-            Priority::Critical(ref p) => quote_spanned!(p.span() => ::batch::Priority::Critical),
+            Priority::Trivial(ref p) => quote_spanned!(p.span() => #krate::Priority::Trivial),
+            Priority::Low(ref p) => quote_spanned!(p.span() => #krate::Priority::Low),
+            Priority::Normal(ref p) => quote_spanned!(p.span() => #krate::Priority::Normal),
+            Priority::High(ref p) => quote_spanned!(p.span() => #krate::Priority::High),
+            Priority::Critical(ref p) => quote_spanned!(p.span() => #krate::Priority::Critical),
         };
         dst.extend(tokens);
     }
@@ -349,6 +350,8 @@ fn args2fields<'a>(args: impl IntoIterator<Item = &'a syn::FnArg>) -> TokenStrea
 
 impl ToTokens for Job {
     fn to_tokens(&self, dst: &mut TokenStream) {
+        let krate = quote!(::batch);
+        let export = quote!(#krate::export);
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
         let retries = self.retries.as_ref().map(|r| quote! {
@@ -357,12 +360,12 @@ impl ToTokens for Job {
             }
         });
         let timeout = self.timeout.as_ref().map(|t| quote! {
-            fn timeout(&self) -> ::batch::export::Duration {
-                ::batch::export::Duration::from_secs(#t)
+            fn timeout(&self) -> #export::Duration {
+                #export::Duration::from_secs(#t)
             }
         });
         let priority = self.priority.as_ref().map(|p| quote! {
-            fn priority(&self) -> ::batch::Priority {
+            fn priority(&self) -> #krate::Priority {
                 #p
             }
         });
@@ -433,7 +436,7 @@ impl ToTokens for Job {
         );
 
         let wrapper_struct = quote! {
-            #[derive(::batch::export::Deserialize, ::batch::export::Serialize)]
+            #[derive(#export::Deserialize, #export::Serialize)]
             #vis struct #wrapper {
                 #serialized_fields
             }
@@ -441,12 +444,12 @@ impl ToTokens for Job {
 
         let into_future = match self.ret {
             Some(ref _ty) => quote!({
-                use ::batch::export::IntoFuture;
+                use #export::IntoFuture;
                 IntoFuture::into_future(#inner_invoke)
             }),
             None => quote!({
                 #inner_invoke;
-                ::batch::export::ok(())
+                #export::ok(())
             }),
         };
 
@@ -454,7 +457,7 @@ impl ToTokens for Job {
             #wrapper_struct
 
             const #dummy_const: () = {
-                fn impl_into_future<T: ::batch::export::IntoFuture<Error = ::batch::export::Error>>() {}
+                fn impl_into_future<T: #export::IntoFuture<Error = #export::Error>>() {}
 
                 fn impl_test() {
                     #impl_test_into_future
@@ -467,10 +470,10 @@ impl ToTokens for Job {
                     }
                 }
 
-                impl ::batch::Job for #wrapper {
+                impl #krate::Job for #wrapper {
                     const NAME: &'static str = #job_name;
 
-                    type PerformFuture = ::batch::export::Box<::batch::export::Future<Item = (), Error = ::batch::export::Error> + ::batch::export::Send>;
+                    type PerformFuture = #export::Box<#export::Future<Item = (), Error = #export::Error> + #export::Send>;
 
                     /// Performs the job.
                     ///
@@ -478,9 +481,9 @@ impl ToTokens for Job {
                     ///
                     /// The function will panic if any parameter marked as `injected` cannot be found
                     /// in the given `Factory`.
-                    fn perform(self, _ctx: ::batch::Factory) -> Self::PerformFuture {
+                    fn perform(self, _ctx: #krate::Factory) -> Self::PerformFuture {
                         #injected_bindings
-                        ::batch::export::Box::new(#into_future)
+                        #export::Box::new(#into_future)
                     }
 
                     #retries
