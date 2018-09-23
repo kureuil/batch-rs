@@ -1,9 +1,4 @@
-# Batch
-
-[![Crates.io][crates-badge]][crates-url]
-[![API Docs][docs-badge]][docs-url]
-[![Travis Build Status][travis-badge]][travis-url]
-[![Appveyor Build status][appveyor-badge]][appveyor-url]
+# Batch [![Crates.io][crates-badge]][crates-url] [![API Docs][docs-badge]][docs-url] [![Travis Build Status][travis-badge]][travis-url] [![Appveyor Build status][appveyor-badge]][appveyor-url]
 
 [crates-badge]: https://img.shields.io/crates/v/batch.svg
 [crates-url]: https://crates.io/crates/batch
@@ -37,16 +32,48 @@ Then add this to your crate root:
 extern crate batch;
 ```
 
-Examples are available on [GitHub][gh-examples] or you can continue and read the [Getting Started][getting-started] guide.
+## Batch in action
+
+```rust
+extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch::job;
+use batch_rabbitmq::{exchanges, Connection};
+use tokio::prelude::Future;
+
+exchanges! {
+	Transcoding {
+		name = "transcoding"
+	}
+}
+
+#[job(name = "batch-example.transcode")]
+fn transcode(path: PathBuf) {
+	// ...
+}
+
+fn main() {
+	let fut = Connection::open("amqp://guest:guest@localhost:5672/%2f")
+		.and_then(|conn| conn.declare(Transcoding).map(|_| conn))
+		.and_then(|conn| {
+			let job = transcode("./video.mp4".into())
+			Transcoding::with(job).deliver(&mut conn)
+		})
+		.map_err(|e| eprintln!("An error occured: {}", e));
+	tokio::run(fut);
+}
+```
+
+More examples are available on [GitHub][gh-examples] and in the [guide][user-guide].
 
 [gh-examples]: https://github.com/kureuil/batch-rs/tree/master/batch/examples
-[getting-started]: https://kureuil.github.io/batch-rs/getting-started.html
+[user-guide]: https://kureuil.github.io/batch-rs/
 
 ## Features
 
 * `codegen`: *(enabled by default)*: Enables the use of the `job` procedural macro.
-* `rabbitmq` *(disabled by default)*: Adapter to use [RabbitMQ](https://www.rabbitmq.com/) as a message broker.
-* `worker` *(disabled by default)*: A forking worker implementation.
 
 ## License
 

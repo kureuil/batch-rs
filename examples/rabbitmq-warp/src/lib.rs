@@ -1,9 +1,4 @@
-#![feature(custom_attribute)]
-
 extern crate batch;
-extern crate failure;
-extern crate futures;
-#[macro_use]
 extern crate serde;
 
 pub mod queues {
@@ -36,6 +31,7 @@ pub mod exchanges {
 
 pub mod jobs {
     use batch::job;
+    use serde::{Serialize, Deserialize};
 
     #[derive(Serialize, Deserialize)]
     pub enum VideoFormat {
