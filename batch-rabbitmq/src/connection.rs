@@ -1,103 +1,99 @@
-use std::collections::{BTreeMap, HashSet};
-use std::fmt;
-use std::io;
-use std::iter::FromIterator;
-use std::net;
-use std::str::FromStr;
-
-use amq_protocol::uri::{AMQPScheme, AMQPUri};
-use batch;
+use amq_protocol::uri::AMQPUri;
+use batch::{self, Dispatch};
 use failure::Error;
 use futures::sync::mpsc::{channel, Sender};
-use futures::{future, Future, IntoFuture, Stream};
+use futures::{future, sink, Async, Future, IntoFuture, Poll, Sink, Stream};
 use lapin::channel::{
-    BasicConsumeOptions, BasicPublishOptions, Channel, ExchangeDeclareOptions, QueueBindOptions,
-    QueueDeclareOptions,
+    BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
+    QueueBindOptions, QueueDeclareOptions,
 };
 use lapin::client::{self, Client, ConnectionOptions};
 use lapin::consumer;
 use lapin::message;
 use lapin::queue::Queue;
-use lapin::types::FieldTable;
-use native_tls::TlsConnector;
+use lapin::types::{AMQPValue, FieldTable};
+use std::collections::{BTreeMap, HashSet};
+use std::fmt;
+use std::io;
+use std::iter::FromIterator;
+use std::str::FromStr;
+use std::sync::Arc;
 use tokio_executor::spawn;
-use tokio_reactor::Handle;
-use tokio_tcp::TcpStream;
-use tokio_tls::TlsConnectorExt;
 
 use consumer::Consumer;
-use dispatch::Dispatch;
-use exchange;
+use declare::Declare;
 use queue;
 use stream;
 
-/// Connection to the RabbitMQ server.
-pub struct Connection {
-    inner: Inner,
-}
+mod sealed {
+    use batch;
+    use failure::Error;
+    use futures::future;
+    use serde::{Deserialize, Serialize};
 
-struct Inner {
-    client: Client<stream::Stream>,
-    channel: Channel<stream::Stream>,
-    publisher: Sender<Dispatch>,
-    queues: BTreeMap<String, Vec<queue::Binding>>,
-    _handle: HeartbeatHandle,
-}
+    /// Stub job used to trick the type system in `Connection::declare`.
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct StubJob;
 
-impl fmt::Debug for Connection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Connection").finish()
+    impl batch::Job for StubJob {
+        const NAME: &'static str = "";
+
+        type PerformFuture = future::FutureResult<(), Error>;
+
+        fn perform(self, _ctx: &batch::Factory) -> Self::PerformFuture {
+            future::ok(())
+        }
     }
 }
 
-impl Connection {
-    pub fn open(uri: &str) -> impl Future<Item = Connection, Error = Error> {
-        AMQPUri::from_str(uri)
+use self::sealed::StubJob;
+
+fn amqp_properties(properties: &batch::Properties) -> BasicProperties {
+    let mut headers = FieldTable::new();
+    headers.insert("lang".into(), AMQPValue::LongString("rs".into()));
+    headers.insert(
+        "task".into(),
+        AMQPValue::LongString(properties.task.clone()),
+    );
+    headers.insert("root_id".into(), AMQPValue::Void);
+    headers.insert("parent_id".into(), AMQPValue::Void);
+    headers.insert("group".into(), AMQPValue::Void);
+    BasicProperties::default()
+        .with_content_type("application/json".to_string())
+        .with_content_encoding("utf-8".to_string())
+        .with_correlation_id(properties.id.hyphenated().to_string())
+        .with_headers(headers)
+}
+
+#[derive(Debug)]
+pub struct Builder<'u> {
+    uri: &'u str,
+    pub(crate) queues: BTreeMap<String, queue::Queue>,
+}
+
+impl<'u> Builder<'u> {
+    pub(crate) fn new(uri: &'u str) -> Self {
+        Builder {
+            uri,
+            queues: Default::default(),
+        }
+    }
+
+    pub fn declare<Q>(mut self, _ctor: impl Fn(StubJob) -> batch::Query<StubJob, Q>) -> Builder<'u>
+    where
+        Q: batch::Queue + Declare,
+    {
+        // TODO: declare queue's exchange
+        Q::declare(&mut self);
+        self
+    }
+
+    pub fn connect(self) -> impl Future<Item = Connection, Error = Error> {
+        let queues = self.queues;
+        AMQPUri::from_str(self.uri)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e).into())
             .into_future()
-            .and_then(|uri| {
-                trace!("Establishing TCP connection");
-                let addr_uri = uri.clone();
-                let addr = (addr_uri.authority.host.as_ref(), addr_uri.authority.port);
-                net::TcpStream::connect(addr)
-                    .map_err(|e| e.into())
-                    .into_future()
-                    .join(future::ok(uri))
-            })
-            .and_then(move |(stream, uri)| {
-                let task: Box<Future<Item = stream::Stream, Error = Error> + Send> =
-                    if uri.scheme == AMQPScheme::AMQP {
-                        trace!("Wrapping TCP connection into tokio-tcp");
-                        let handle = Handle::current();
-                        let task = TcpStream::from_std(stream, &handle)
-                            .map(stream::Stream::Raw)
-                            .map_err(|e| e.into())
-                            .into_future();
-                        Box::new(task)
-                    } else {
-                        trace!("Wrapping TCP connection into tokio-tls");
-                        let host = uri.authority.host.clone();
-                        let task = TlsConnector::builder()
-                            .map_err(|e| e.into())
-                            .into_future()
-                            .and_then(|builder| builder.build().map_err(|e| e.into()))
-                            .and_then(move |connector| {
-                                let handle = Handle::current();
-                                TcpStream::from_std(stream, &handle)
-                                    .map_err(|e| e.into())
-                                    .into_future()
-                                    .join(future::ok(connector))
-                            })
-                            .and_then(move |(stream, connector)| {
-                                connector
-                                    .connect_async(&host, stream)
-                                    .map(stream::Stream::Tls)
-                                    .map_err(|e| e.into())
-                            });
-                        Box::new(task)
-                    };
-                task.join(future::ok(uri))
-            })
+            .and_then(|uri| stream::Stream::new(uri.clone()).map(|s| (s, uri)))
             .and_then(move |(stream, uri)| {
                 trace!("Connecting to RabbitMQ broker");
                 let opts = ConnectionOptions {
@@ -108,8 +104,7 @@ impl Connection {
                     heartbeat: uri.query.heartbeat.unwrap_or(0),
                 };
                 Client::connect(stream, opts).map_err(|e| e.into())
-            })
-            .and_then(move |(client, mut heartbeat)| {
+            }).and_then(move |(client, mut heartbeat)| {
                 let handle = HeartbeatHandle(heartbeat.handle());
                 trace!("Spawning RabbitMQ heartbeat future");
                 spawn(heartbeat.map_err(|e| {
@@ -124,62 +119,57 @@ impl Connection {
                         let background = consumer.for_each(move |dispatch: Dispatch| {
                             consume_channel
                                 .basic_publish(
-                                    dispatch.exchange(),
+                                    dispatch.destination(),
                                     &dispatch.properties().task,
                                     dispatch.payload().to_vec(),
                                     BasicPublishOptions::default(),
-                                    dispatch.to_amqp_properties(),
-                                )
-                                .map(|_| ())
+                                    amqp_properties(dispatch.properties()),
+                                ).map(|_| ())
                                 .map_err(|e| error!("Couldn't publish message to channel: {}", e))
                         });
                         spawn(background);
+                        let inner = Inner {
+                            _channel: channel,
+                            _handle: handle,
+                            client,
+                            publisher,
+                            queues,
+                        };
                         Connection {
-                            inner: Inner {
-                                _handle: handle,
-                                client,
-                                channel,
-                                publisher,
-                                queues: BTreeMap::new(),
-                            },
+                            inner: Arc::new(inner),
                         }
                     })
             })
     }
 }
 
-impl batch::Declarator<exchange::Builder, exchange::Exchange> for Connection {
-    type DeclareFuture = Box<Future<Item = exchange::Exchange, Error = Error> + Send>;
+/// Connection to the RabbitMQ server.
+#[derive(Clone)]
+pub struct Connection {
+    inner: Arc<Inner>,
+}
 
-    fn declare(&mut self, builder: exchange::Builder) -> Self::DeclareFuture {
-        let publisher = self.inner.publisher.clone();
-        let task = self
-            .inner
-            .channel
-            .exchange_declare(
-                &builder.name,
-                builder.kind.as_ref(),
-                ExchangeDeclareOptions::default(),
-                FieldTable::new(),
-            )
-            .map(|_| exchange::Exchange::new(publisher, builder.name, builder.kind))
-            .map_err(|e| e.into());
-        Box::new(task)
+struct Inner {
+    client: Client<stream::Stream>,
+    publisher: Sender<Dispatch>,
+    queues: BTreeMap<String, queue::Queue>,
+    _channel: Channel<stream::Stream>,
+    _handle: HeartbeatHandle,
+}
+
+impl fmt::Debug for Connection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Connection").finish()
     }
 }
 
-impl batch::Declarator<queue::Builder, queue::Queue> for Connection {
-    type DeclareFuture = Box<Future<Item = queue::Queue, Error = Error> + Send>;
+impl Connection {
+    pub fn build<'u>(uri: &'u str) -> Builder<'u> {
+        Builder::new(uri)
+    }
 
-    fn declare(&mut self, builder: queue::Builder) -> Self::DeclareFuture {
-        let queue = match builder.build() {
-            Ok(q) => q,
-            Err(e) => return Box::new(future::err(e)),
-        };
-        self.inner
-            .queues
-            .insert(queue.name().into(), queue.bindings.clone());
-        Box::new(future::ok(queue))
+    pub fn open(uri: &str) -> impl Future<Item = Connection, Error = Error> {
+        Builder::new(uri).connect()
     }
 }
 
@@ -188,92 +178,97 @@ impl batch::ToConsumer for Connection {
 
     type ToConsumerFuture = Box<Future<Item = Self::Consumer, Error = Error> + Send>;
 
+    /// Creates a consumer fetching messages from the given queues.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the given iterator yield no items.
     fn to_consumer(
         &mut self,
         queues: impl IntoIterator<Item = impl AsRef<str>>,
     ) -> Self::ToConsumerFuture {
         let names: HashSet<String> =
             HashSet::from_iter(queues.into_iter().map(|q| q.as_ref().to_string()));
-        let names: Vec<String> = self
+        if names.len() == 0 {
+            panic!("you must give a list of queues to consume from");
+        }
+        let queues: Vec<(String, queue::Queue)> = self
             .inner
             .queues
-            .keys()
-            .filter(|q| names.contains(q.as_str()))
-            .map(ToString::to_string)
+            .clone()
+            .into_iter()
+            .filter(|(k, _v)| names.contains(k))
             .collect();
-        let queues = self.inner.queues.clone();
         let task = self
             .inner
             .client
             .create_channel()
             .map_err(Error::from)
             .and_then(move |channel| {
-                let tasks: Vec<Box<Future<Item = Queue, Error = Error> + Send>> = names
+                let tasks: Vec<_> = queues
+                    .into_iter()
+                    .map(|(name, queue)| {
+                        let task = channel
+                            .exchange_declare(
+                                queue.exchange().name(),
+                                queue.exchange().kind().as_ref(),
+                                ExchangeDeclareOptions::default(),
+                                FieldTable::new(),
+                            ).map(|_| (name, queue))
+                            .map_err(Error::from);
+                        Box::new(task)
+                            as Box<Future<Item = (String, queue::Queue), Error = Error> + Send>
+                    }).collect();
+                future::join_all(tasks).map(|queues| (channel, queues))
+            }).and_then(move |(channel, queues)| {
+                let tasks: Vec<_> = queues
                     .iter()
-                    .map(|queue_name| {
+                    .map(|(_, queue)| {
                         let task = channel
                             .queue_declare(
-                                &queue_name,
+                                queue.name(),
                                 QueueDeclareOptions::default(),
                                 FieldTable::new(),
-                            )
-                            .map_err(Error::from);
-                        let boxed: Box<
-                            Future<Item = Queue, Error = Error> + Send,
-                        > = Box::new(task);
-                        boxed
-                    })
-                    .collect();
-                future::join_all(tasks).map(|names| (names, channel))
-            })
-            .and_then(move |(names, channel)| {
-                let mut bindings = vec![];
-                for (name, binding) in queues {
-                    bindings.extend(binding.into_iter().map(|binding| (name.clone(), binding)));
-                }
-                let tasks: Vec<Box<Future<Item = (), Error = Error> + Send>> = bindings
-                    .into_iter()
-                    .map(|(queue, binding)| {
+                            ).map_err(Error::from);
+                        Box::new(task) as Box<Future<Item = Queue, Error = Error> + Send>
+                    }).collect();
+                future::join_all(tasks).map(|declared| (channel, queues, declared))
+            }).and_then(move |(channel, queues, declared)| {
+                let mut tasks = vec![];
+                for (_, queue) in queues {
+                    for job in queue.callbacks().map(|(k, _v)| k) {
                         let task = channel
                             .queue_bind(
-                                &queue,
-                                &binding.exchange,
-                                &binding.routing_key,
+                                queue.name(),
+                                queue.exchange().name(),
+                                job,
                                 QueueBindOptions::default(),
                                 FieldTable::new(),
-                            )
-                            .map_err(Error::from);
-                        let boxed: Box<
-                            Future<Item = (), Error = Error> + Send,
-                        > = Box::new(task);
-                        boxed
-                    })
-                    .collect();
-                future::join_all(tasks).map(move |_| (names, channel))
-            })
-            .and_then(|(names, channel)| {
-                let tasks: Vec<
-                    Box<Future<Item = consumer::Consumer<stream::Stream>, Error = Error> + Send>,
-                > = names
+                            ).map_err(Error::from);
+                        let boxed = Box::new(task) as Box<Future<Item = (), Error = Error> + Send>;
+                        tasks.push(boxed);
+                    }
+                }
+                future::join_all(tasks).map(move |_| (channel, declared))
+            }).and_then(|(channel, declared)| {
+                let tasks: Vec<_> = declared
                     .iter()
-                    .map(|queue_name| {
+                    .map(|queue| {
                         let task = channel
                             .basic_consume(
-                                &queue_name,
-                                "",
+                                &queue,
+                                "", // We let RabbitMQ generate the consumer tag
                                 BasicConsumeOptions::default(),
                                 FieldTable::new(),
-                            )
-                            .map_err(Error::from);
-                        let boxed: Box<
-                            Future<Item = consumer::Consumer<stream::Stream>, Error = Error> + Send,
-                        > = Box::new(task);
-                        boxed
-                    })
-                    .collect();
-                future::join_all(tasks).map(|consumers| (consumers, channel))
-            })
-            .and_then(|(mut consumers, channel)| {
+                            ).map_err(Error::from);
+                        Box::new(task)
+                            as Box<
+                                Future<Item = consumer::Consumer<stream::Stream>, Error = Error>
+                                    + Send,
+                            >
+                    }).collect();
+                future::join_all(tasks).map(|consumers| (channel, consumers))
+            }).and_then(|(channel, mut consumers)| {
                 let combined: Box<
                     Stream<Item = message::Delivery, Error = Error> + Send + 'static,
                 > = Box::new(consumers.pop().unwrap().map_err(Error::from));
@@ -287,6 +282,32 @@ impl batch::ToConsumer for Connection {
                 }).map(move |combined| Consumer::new(channel, combined))
             });
         Box::new(task)
+    }
+}
+
+/// The future returned when sending a dispatch to the broker.
+#[derive(Debug)]
+pub struct SendFuture(sink::Send<Sender<Dispatch>>);
+
+impl Future for SendFuture {
+    type Item = ();
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.0.poll() {
+            Ok(Async::Ready(_)) => Ok(Async::Ready(())),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(Error::from(e)),
+        }
+    }
+}
+
+impl batch::Client for Connection {
+    type SendFuture = SendFuture;
+
+    fn send(&mut self, dispatch: batch::Dispatch) -> Self::SendFuture {
+        SendFuture(self.inner.publisher.clone().send(dispatch))
     }
 }
 

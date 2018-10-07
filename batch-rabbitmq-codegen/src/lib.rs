@@ -10,13 +10,7 @@ extern crate syn;
 use proc_macro::TokenStream;
 
 mod error;
-mod exchanges;
 mod queues;
-
-#[proc_macro]
-pub fn exchanges(input: TokenStream) -> TokenStream {
-    exchanges::impl_macro(input)
-}
 
 #[proc_macro]
 pub fn queues(input: TokenStream) -> TokenStream {

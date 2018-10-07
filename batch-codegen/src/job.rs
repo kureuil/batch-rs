@@ -23,7 +23,7 @@ enum JobAttr {
     Inject(HashSet<syn::Ident>),
     Retries(syn::LitInt),
     Timeout(syn::LitInt),
-    Priority(Priority)
+    Priority(Priority),
 }
 
 #[derive(Clone)]
@@ -59,8 +59,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Name(s) => Some(s.value()),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 
     fn wrapper(&self) -> Option<syn::Ident> {
@@ -69,8 +68,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Wrapper(i) => Some(i.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 
     fn inject(&self) -> HashSet<syn::Ident> {
@@ -79,8 +77,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Inject(i) => Some(i.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
             .unwrap_or_else(HashSet::new)
     }
 
@@ -90,8 +87,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Retries(r) => Some(r.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 
     fn timeout(&self) -> Option<syn::LitInt> {
@@ -100,8 +96,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Timeout(t) => Some(t.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 
     fn priority(&self) -> Option<Priority> {
@@ -110,8 +105,7 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Priority(p) => Some(p.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 }
 
@@ -354,39 +348,38 @@ impl ToTokens for Job {
         let export = quote!(#krate::export);
         let vis = &self.visibility;
         let wrapper = self.wrapper.as_ref().unwrap();
-        let retries = self.retries.as_ref().map(|r| quote! {
-            fn retries(&self) -> u32 {
-                #r
+        let retries = self.retries.as_ref().map(|r| {
+            quote! {
+                fn retries(&self) -> u32 {
+                    #r
+                }
             }
         });
-        let timeout = self.timeout.as_ref().map(|t| quote! {
-            fn timeout(&self) -> #export::Duration {
-                #export::Duration::from_secs(#t)
-            }
-        });
-        let priority = self.priority.as_ref().map(|p| quote! {
-            fn priority(&self) -> #krate::Priority {
-                #p
+        let timeout = self.timeout.as_ref().map(|t| {
+            quote! {
+                fn timeout(&self) -> #export::Duration {
+                    #export::Duration::from_secs(#t)
+                }
             }
         });
         let job_name = &self.name;
         let serialized_fields = args2fields(&self.serialized_args);
-        let deserialized_bindings = self.serialized_args.iter().fold(
-            TokenStream::new(),
-            |acc, arg| match arg {
-                syn::FnArg::Captured(cap) => match cap.pat {
-                    syn::Pat::Ident(ref pat) => {
-                        let ident = &pat.ident;
-                        quote! {
-                            #acc
-                            let #ident = self.#ident;
+        let deserialized_bindings =
+            self.serialized_args
+                .iter()
+                .fold(TokenStream::new(), |acc, arg| match arg {
+                    syn::FnArg::Captured(cap) => match cap.pat {
+                        syn::Pat::Ident(ref pat) => {
+                            let ident = &pat.ident;
+                            quote! {
+                                #acc
+                                let #ident = self.#ident;
+                            }
                         }
-                    }
+                        _ => acc,
+                    },
                     _ => acc,
-                },
-                _ => acc,
-            },
-        );
+                });
         let injected_fields = args2fields(&self.injected_args);
         let injected_bindings = self
             .injected_args
@@ -405,30 +398,37 @@ impl ToTokens for Job {
                 }
                 _ => acc,
             });
-        let injected_args = self.injected_args.iter().fold(
-            TokenStream::new(),
-            |acc, arg| match arg {
-                syn::FnArg::Captured(cap) => match cap.pat {
-                    syn::Pat::Ident(ref pat) => {
-                        let ident = &pat.ident;
-                        quote! {
-                            #acc
-                            #ident,
+        let injected_args =
+            self.injected_args
+                .iter()
+                .fold(TokenStream::new(), |acc, arg| match arg {
+                    syn::FnArg::Captured(cap) => match cap.pat {
+                        syn::Pat::Ident(ref pat) => {
+                            let ident = &pat.ident;
+                            quote! {
+                                #acc
+                                #ident,
+                            }
                         }
-                    }
+                        _ => acc,
+                    },
                     _ => acc,
-                },
-                _ => acc,
-            },
-        );
+                });
         let inner_block = {
             let block = &self.inner_block;
             quote!(#block)
         };
         let inner_invoke = quote!(self.perform_now(#injected_args));
 
-        let ret_ty = self.ret.as_ref().map(|ty| quote!(#ty)).unwrap_or_else(|| quote!(()));
-        let impl_test_into_future = self.ret.as_ref().map(|ty| quote_spanned!(ty.span() => impl_into_future::<#ty>()));
+        let ret_ty = self
+            .ret
+            .as_ref()
+            .map(|ty| quote!(#ty))
+            .unwrap_or_else(|| quote!(()));
+        let impl_test_into_future = self
+            .ret
+            .as_ref()
+            .map(|ty| quote_spanned!(ty.span() => impl_into_future::<#ty>()));
 
         let dummy_const = syn::Ident::new(
             &format!("__IMPL_BATCH_JOB_FOR_{}", wrapper.to_string()),
@@ -481,7 +481,7 @@ impl ToTokens for Job {
                     ///
                     /// The function will panic if any parameter marked as `injected` cannot be found
                     /// in the given `Factory`.
-                    fn perform(self, _ctx: #krate::Factory) -> Self::PerformFuture {
+                    fn perform(self, _ctx: &#krate::Factory) -> Self::PerformFuture {
                         #injected_bindings
                         #export::Box::new(#into_future)
                     }
@@ -489,8 +489,6 @@ impl ToTokens for Job {
                     #retries
 
                     #timeout
-
-                    #priority
                 }
             };
         };
@@ -515,8 +513,7 @@ pub fn impl_macro(
             .fold(TokenStream::new(), |mut acc, err| {
                 err.to_tokens(&mut acc);
                 acc
-            })
-            .into()
+            }).into()
     } else {
         let output = quote! {
             #job

@@ -1,13 +1,60 @@
-use std::io::{self, Read, Write};
-
+use amq_protocol::uri::{AMQPScheme, AMQPUri};
 use bytes::{Buf, BufMut};
-use futures::Poll;
+use failure::Error;
+use futures::{Future, IntoFuture, Poll};
+use native_tls::TlsConnector;
+use std::io::{self, Read, Write};
+use std::net;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_reactor::Handle;
+use tokio_tcp::TcpStream;
+use tokio_tls::TlsConnectorExt;
 
 #[derive(Debug)]
 pub enum Stream {
     Raw(::tokio_tcp::TcpStream),
     Tls(::tokio_tls::TlsStream<::tokio_tcp::TcpStream>),
+}
+
+impl Stream {
+    pub(crate) fn new(uri: AMQPUri) -> impl Future<Item = Self, Error = Error> {
+        trace!("Establishing TCP connection");
+        net::TcpStream::connect((uri.authority.host.clone().as_ref(), uri.authority.port))
+            .map_err(Error::from)
+            .into_future()
+            .and_then(move |stream| {
+                let task = if uri.scheme == AMQPScheme::AMQP {
+                    trace!("Wrapping TCP connection into tokio-tcp");
+                    let handle = Handle::current();
+                    let task = TcpStream::from_std(stream, &handle)
+                        .map(Stream::Raw)
+                        .map_err(|e| e.into())
+                        .into_future();
+                    Box::new(task) as Box<Future<Item = Stream, Error = Error> + Send>
+                } else {
+                    trace!("Wrapping TCP connection into tokio-tls");
+                    let host = uri.authority.host.clone();
+                    let task = TlsConnector::builder()
+                        .map_err(|e| e.into())
+                        .into_future()
+                        .and_then(|builder| builder.build().map_err(|e| e.into()))
+                        .and_then(move |connector| {
+                            let handle = Handle::current();
+                            TcpStream::from_std(stream, &handle)
+                                .map_err(|e| e.into())
+                                .into_future()
+                                .map(|s| (s, connector))
+                        }).and_then(move |(stream, connector)| {
+                            connector
+                                .connect_async(&host, stream)
+                                .map(Stream::Tls)
+                                .map_err(|e| e.into())
+                        });
+                    Box::new(task) as Box<Future<Item = Stream, Error = Error> + Send>
+                };
+                task
+            })
+    }
 }
 
 impl Read for Stream {

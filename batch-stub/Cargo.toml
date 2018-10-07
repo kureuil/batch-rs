@@ -8,3 +8,6 @@ authors = ["Louis Person <louis@person.guru>"]
 
 [dependencies]
 batch = { version = "0.2", path = "../" }
+failure = "0.1"
+futures = "0.1"
+serde = "1.0"

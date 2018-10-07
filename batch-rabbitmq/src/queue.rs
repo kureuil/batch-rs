@@ -1,120 +1,111 @@
-use std::collections::btree_map::IntoIter;
-use std::collections::BTreeMap;
-use std::fmt;
-
 use batch;
 use failure::Error;
 use futures::{future, Future};
-use serde::{Deserialize, Deserializer};
 use serde_json;
+use std::collections::BTreeMap;
+use std::fmt;
 
-#[derive(Debug, Clone)]
-pub(crate) struct Binding {
-    pub(crate) exchange: String,
-    pub(crate) routing_key: String,
-}
+use {ConnectionBuilder, Exchange};
 
 pub struct Builder {
-    pub(crate) name: String,
-    pub(crate) bindings: Vec<Binding>,
-    pub(crate) callbacks:
-        BTreeMap<String, fn(&[u8], batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>>,
+    name: String,
+    exchange: Exchange,
+    callbacks: BTreeMap<
+        &'static str,
+        fn(&[u8], &batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>,
+    >,
 }
 
 impl fmt::Debug for Builder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Builder")
             .field("name", &self.name)
-            .field("bindings", &self.bindings)
+            .field("exchange", &self.exchange)
             .field("callbacks", &self.callbacks.keys())
             .finish()
     }
 }
 
 impl Builder {
-    pub fn bind<E, J>(mut self) -> Self
+    pub fn bind<J>(mut self) -> Self
     where
-        E: batch::Declare,
         J: batch::Job,
     {
-        let callback = |payload: &[u8],
-                        context: batch::Factory|
+        let callback = |payload: &[u8], context: &batch::Factory| // TODO: try to remote type annotations
          -> Box<Future<Item = (), Error = Error> + Send> {
-            struct De<J: batch::Job>(J);
-
-            impl<'de, J: batch::Job> Deserialize<'de> for De<J> {
-                fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                    let inner: J = J::deserialize(deserializer)?;
-                    Ok(De(inner))
-                }
-            }
-
             let job: J = match serde_json::from_slice(payload) {
-                Ok(De(job)) => job,
+                Ok(job) => job,
                 Err(e) => return Box::new(future::err(Error::from(e))),
             };
             Box::new(job.perform(context))
         };
-        self.bindings.push(Binding {
-            exchange: E::NAME.into(),
-            routing_key: J::NAME.into(),
-        });
-        self.callbacks.insert(J::NAME.into(), callback);
+        self.callbacks.insert(J::NAME, callback);
         self
     }
 
-    pub fn declare(
-        self,
-        declarator: &mut impl batch::Declarator<Builder, Queue>,
-    ) -> impl Future<Item = Queue, Error = Error> {
-        declarator.declare(self)
+    pub fn exchange(mut self, exchange: Exchange) -> Self {
+        self.exchange = exchange;
+        self
     }
 
-    pub(crate) fn build(self) -> Result<Queue, Error> {
-        Ok(Queue {
+    pub fn finish(self) -> Queue {
+        Queue {
             name: self.name,
-            bindings: self.bindings,
+            exchange: self.exchange,
             callbacks: self.callbacks,
-        })
+        }
     }
 }
 
+#[derive(Clone)]
 pub struct Queue {
-    pub(crate) name: String,
-    pub(crate) bindings: Vec<Binding>,
-    pub(crate) callbacks:
-        BTreeMap<String, fn(&[u8], batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>>,
+    name: String,
+    exchange: Exchange,
+    callbacks: BTreeMap<
+        &'static str,
+        fn(&[u8], &batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>,
+    >,
 }
 
 impl fmt::Debug for Queue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Builder")
             .field("name", &self.name)
-            .field("bindings", &self.bindings)
+            .field("exchange", &self.exchange)
             .field("callbacks", &self.callbacks.keys())
             .finish()
     }
 }
 
 impl Queue {
-    pub fn builder(name: String) -> Builder {
+    pub fn build(name: String) -> Builder {
         Builder {
-            name,
-            bindings: vec![],
+            name: name.clone(),
+            exchange: Exchange::new(name),
             callbacks: BTreeMap::new(),
         }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
-}
 
-impl batch::Callbacks for Queue {
-    type Iterator =
-        IntoIter<String, fn(&[u8], batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>>;
+    pub fn exchange(&self) -> &Exchange {
+        &self.exchange
+    }
 
-    fn callbacks(&self) -> Self::Iterator {
-        self.callbacks.clone().into_iter()
+    pub fn callbacks(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &'static str,
+            fn(&[u8], &batch::Factory) -> Box<Future<Item = (), Error = Error> + Send>,
+        ),
+    > {
+        self.callbacks.clone().into_iter() // TODO: remove clone
+    }
+
+    pub fn register(self, conn: &mut ConnectionBuilder) {
+        conn.queues.insert(self.name().into(), self);
     }
 }

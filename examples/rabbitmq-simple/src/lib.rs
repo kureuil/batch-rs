@@ -8,24 +8,9 @@ pub mod queues {
     queues! {
         Transcoding {
             name = "transcoding",
-            with_priorities = true,
-            exclusive = true,
-            bindings = {
-                super::exchanges::Transcoding = [
-                    super::jobs::convert_video_file
-                ]
-            }
-        }
-    }
-}
-
-pub mod exchanges {
-    use batch_rabbitmq::exchanges;
-
-    exchanges! {
-        Transcoding {
-            name = "transcoding",
-            kind = direct,
+            bindings = [
+                super::jobs::convert_video_file
+            ]
         }
     }
 }

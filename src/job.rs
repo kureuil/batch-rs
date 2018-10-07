@@ -36,7 +36,7 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     type PerformFuture: Future<Item = (), Error = Error> + Send + 'static;
 
     /// Perform the background job.
-    fn perform(self, context: Factory) -> Self::PerformFuture;
+    fn perform(self, context: &Factory) -> Self::PerformFuture;
 
     /// The number of times this job must be retried in case of error.
     ///
@@ -56,39 +56,6 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     /// By default, a job is allowed to run 30 minutes.
     fn timeout(&self) -> Duration {
         Duration::from_secs(30 * 60)
-    }
-
-    /// The priority associated to this job.
-    ///
-    /// This function is meant to be overriden by the user to return a value different from the associated
-    /// constant depending on the contents of the actual job.
-    ///
-    /// By default, a job is assigned the `Normal` priority.
-    fn priority(&self) -> Priority {
-        Priority::Normal
-    }
-}
-
-/// The different priorities that can be assigned to a `Job`.
-///
-/// The default value is `Priority::Normal`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum Priority {
-    /// The lowest available priority for a job.
-    Trivial = 1,
-    /// A lower priority than `Priority::Normal` but higher than `Priority::Trivial`.
-    Low = 3,
-    /// The default priority for a job.
-    Normal = 5,
-    /// A higher priority than `Priority::Normal` but higher than `Priority::Critical`.
-    High = 7,
-    /// The highest available priority for a job.
-    Critical = 9,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::Normal
     }
 }
 
@@ -113,8 +80,6 @@ pub struct Properties {
     ///
     /// The first duration represents the soft timelimit while the second duration represents the hard timelimit.
     pub timelimit: (Option<Duration>, Option<Duration>),
-    /// The priority of this job.
-    pub priority: Priority,
     /// The content type of the job once serialized.
     pub content_type: String,
     /// The content encoding of the job once serialized.
@@ -133,7 +98,6 @@ impl Properties {
             parent_id: None,
             group: None,
             timelimit: (None, None),
-            priority: Priority::default(),
             content_type: "application/json".to_string(),
             content_encoding: "utf-8".to_string(),
             __non_exhaustive: (),
@@ -149,7 +113,6 @@ impl fmt::Debug for Properties {
             .field("lang", &self.lang)
             .field("task", &self.task)
             .field("id", &self.id)
-            .field("priority", &self.priority)
             .field("timelimit", &self.timelimit)
             .field("root_id", &self.root_id)
             .field("parent_id", &self.parent_id)

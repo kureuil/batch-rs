@@ -1,7 +1,7 @@
 //! Batch Worker.
 
-use failure::{bail, Error};
-use futures::{self, Future, Stream};
+use failure::{self, Error};
+use futures::{self, future, Future, Stream};
 use log::{debug, error, warn};
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -13,7 +13,30 @@ use std::sync::mpsc;
 use tokio_executor;
 use wait_timeout::ChildExt;
 
-use {Delivery, Factory};
+use {Delivery, Factory, Query, Queue};
+
+mod sealed {
+    use failure::Error;
+    use futures::future;
+    use serde::{Deserialize, Serialize};
+    use {Factory, Job};
+
+    /// Stub job used to trick the type system in `Connection::declare`.
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct StubJob;
+
+    impl Job for StubJob {
+        const NAME: &'static str = "";
+
+        type PerformFuture = future::FutureResult<(), Error>;
+
+        fn perform(self, _ctx: &Factory) -> Self::PerformFuture {
+            future::ok(())
+        }
+    }
+}
+
+use self::sealed::StubJob;
 
 /// The worker is responsible for polling the broker for jobs, deserializing them and execute
 /// them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
@@ -27,9 +50,9 @@ use {Delivery, Factory};
 pub struct Worker<Conn> {
     connection: Conn,
     queues: HashSet<String>,
-    state: Factory,
+    factory: Factory,
     callbacks:
-        HashMap<String, fn(&[u8], ::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
+        HashMap<String, fn(&[u8], &::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
 }
 
 impl<Conn> fmt::Debug for Worker<Conn>
@@ -53,32 +76,10 @@ where
     pub fn new(connection: Conn) -> Self {
         Worker {
             connection,
-            state: Factory::new(),
+            factory: Factory::new(),
             queues: HashSet::new(),
             callbacks: HashMap::new(),
         }
-    }
-
-    /// Declare a new resource to consume from.
-    pub fn declare<D>(mut self) -> impl Future<Item = Self, Error = Error> + Send
-    where
-        D: ::Declare + ::Callbacks,
-        Conn: ::Declarator<D::Input, D::Output> + Send + 'static,
-    {
-        D::declare(&mut self.connection).and_then(|resource| {
-            self.queues.insert(D::NAME.into());
-            for (job, callback) in resource.callbacks() {
-                if let Some(previous) = self.callbacks.insert(job.clone(), callback) {
-                    if previous as fn(_, _) -> _ != callback as fn(_, _) -> _ {
-                        bail!(
-                            "Two different callbacks were registered for the `{}` job.",
-                            job
-                        )
-                    }
-                }
-            }
-            Ok(self)
-        })
     }
 
     /// Provide a constructor for a given type.
@@ -87,12 +88,31 @@ where
         T: 'static,
         F: Fn() -> T + Send + Sync + 'static,
     {
-        self.state.provide(init);
+        self.factory.provide(init);
+        self
+    }
+
+    /// Instruct the worker to consume jobs from the given queue.
+    pub fn queue<Q>(mut self, _ctor: impl Fn(StubJob) -> Query<StubJob, Q>) -> Self
+    where
+        Q: Queue,
+    {
+        self.queues.insert(Q::NAME.into());
+        for (job, callback) in Q::callbacks() {
+            if let Some(previous) = self.callbacks.insert(job.into(), callback) {
+                if previous as fn(_, _) -> _ != callback as fn(_, _) -> _ {
+                    panic!(
+                        "Two different callbacks were registered for the `{}` job.",
+                        job
+                    );
+                }
+            }
+        }
         self
     }
 
     /// Consume deliveries from all of the declared resources.
-    pub fn run(self) -> impl Future<Item = (), Error = Error> + Send {
+    pub fn work(self) -> impl Future<Item = (), Error = Error> + Send {
         if let Ok(job) = env::var("BATCHRS_WORKER_IS_EXECUTOR") {
             let (tx, rx) = mpsc::channel::<Result<(), Error>>();
             let tx2 = tx.clone();
@@ -151,10 +171,22 @@ where
 
     fn execute(self, job: String) -> impl Future<Item = (), Error = Error> + Send {
         let mut input = vec![];
-        // It is safe to unwrap because we know this function will be executed in a child process.
-        io::stdin().read_to_end(&mut input).unwrap();
-        let handler = self.callbacks.get(&job).unwrap();
-        (*handler)(&input, self.state)
+        match io::stdin().read_to_end(&mut input).map_err(Error::from) {
+            Ok(_) => (),
+            Err(e) => {
+                return Box::new(future::err(e)) as Box<Future<Item = (), Error = Error> + Send>
+            }
+        };
+        let handler = match self.callbacks.get(&job) {
+            Some(handler) => handler,
+            None => {
+                return Box::new(future::err(failure::err_msg(format!(
+                    "No handler registered for {}",
+                    job
+                )))) as Box<Future<Item = (), Error = Error> + Send>
+            }
+        };
+        Box::new((*handler)(&input, &self.factory)) as Box<Future<Item = (), Error = Error> + Send>
     }
 }
 

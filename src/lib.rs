@@ -16,17 +16,19 @@
 //!
 //! ```rust
 //! extern crate batch;
-//! #[macro_use]
-//! extern crate serde;
+//! extern crate batch_rabbitmq;
 //! extern crate tokio;
 //!
-//! use batch::{job, Declare};
-//! use batch::rabbitmq::{self, exchanges};
+//! use batch::{job, Query};
+//! use batch_rabbitmq::{self, queues};
 //! use tokio::prelude::*;
 //!
-//! exchanges! {
+//! queues! {
 //!     Notifications {
-//!         name = "notifications"
+//!         name = "notifications",
+//!         bindings = [
+//!             self::say_hello,
+//!         ]
 //!     }
 //! }
 //!
@@ -36,13 +38,12 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = rabbitmq::Connection::open("amqp://guest:guest@localhost/");
-//!     let notifications = conn.and_then(|mut conn| Notifications::declare(&mut conn));
-//!     let send = notifications.and_then(|notifications| {
-//!         use batch::dsl::*;
-//!
-//!         notifications.with(say_hello(String::from("Ferris"))).deliver()
-//!     });
+//!     let conn = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost/%2f")
+//!         .and_then(|mut client| client.declare(Notifications).map(|_| client))
+//!         .and_then(|client| {
+//!             let job = say_hello(String::from("Ferris"));
+//!             Notifications(job).dispatch(&client)
+//!         });
 //!
 //! # if false {
 //!     tokio::run(
@@ -62,12 +63,13 @@ extern crate failure;
 extern crate futures;
 extern crate log;
 extern crate serde;
+extern crate serde_json;
 extern crate tokio_executor;
-extern crate wait_timeout;
 extern crate uuid;
+extern crate wait_timeout;
 
+mod client;
 mod consumer;
-mod declare;
 mod delivery;
 mod dispatch;
 pub mod dsl;
@@ -76,16 +78,18 @@ pub mod dsl;
 pub mod export;
 mod factory;
 mod job;
-mod publisher;
+mod query;
+mod queue;
 mod worker;
 
 #[cfg(feature = "codegen")]
 pub use batch_codegen::job;
+pub use client::Client;
 pub use consumer::{Consumer, ToConsumer};
-pub use declare::{Callbacks, Declarator, Declare, DeclareMarker};
 pub use delivery::Delivery;
 pub use dispatch::Dispatch;
 pub use factory::Factory;
-pub use job::{Job, Priority, Properties};
-pub use publisher::Publisher;
+pub use job::{Job, Properties};
+pub use query::Query;
+pub use queue::Queue;
 pub use worker::Worker;

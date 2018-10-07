@@ -3,7 +3,7 @@
 use failure::Error;
 use futures::Future;
 
-use job::{Job, Priority};
+use job::Job;
 
 /// A query contructor.
 pub trait With<J: Job> {
@@ -12,12 +12,6 @@ pub trait With<J: Job> {
 
     /// Create a new query.
     fn with(&self, job: J) -> Self::Query;
-}
-
-/// Change the priority of a job.
-pub trait WithPriority {
-    /// Set the priority of the current query's job to the given `priority`.
-    fn priority(self, priority: Priority) -> Self;
 }
 
 /// A deliverable job.

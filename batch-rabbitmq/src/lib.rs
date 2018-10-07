@@ -29,20 +29,19 @@ extern crate uuid;
 
 mod connection;
 mod consumer;
+mod declare;
 mod delivery;
-mod dispatch;
 mod exchange;
 /// Not public API.
 #[doc(hidden)]
 pub mod export;
-mod query;
 mod queue;
 mod stream;
 
 #[cfg(feature = "codegen")]
-pub use batch_rabbitmq_codegen::{exchanges, queues};
-pub use connection::Connection;
+pub use batch_rabbitmq_codegen::queues;
+pub use connection::{Builder as ConnectionBuilder, Connection};
+pub use declare::Declare;
 pub use delivery::{Acknowledge, Delivery, Reject};
 pub use exchange::{Builder as ExchangeBuilder, Exchange, Kind as ExchangeKind};
-pub use query::Query;
 pub use queue::{Builder as QueueBuilder, Queue};

@@ -12,5 +12,5 @@ pub use std::time::Duration;
 pub type str = help::Str;
 
 mod help {
-	pub type Str = str;
+    pub type Str = str;
 }

@@ -11,10 +11,11 @@ use example::queues;
 
 fn main() {
     env_logger::init();
-    let task = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .map(|connection| batch::Worker::new(connection))
-        .and_then(|worker| worker.declare::<queues::Transcoding>())
-        .and_then(|worker| worker.run())
+    let task = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        .declare(queues::Transcoding)
+        .connect()
+        .map(|connection| batch::Worker::new(connection).queue(queues::Transcoding))
+        .and_then(|worker| worker.work())
         .map_err(|e| eprintln!("An error occured: {}", e));
     tokio::run(task);
 }

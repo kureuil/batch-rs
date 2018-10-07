@@ -15,6 +15,7 @@ doc = false
 [dependencies]
 batch = { version = "0.2", path = "../../" }
 batch-rabbitmq = { version = "0.2", path = "../../batch-rabbitmq" }
+batch-stub = { version = "0.2", path = "../../batch-stub" }
 env_logger = "0.5"
 failure = "0.1"
 futures = "0.1"

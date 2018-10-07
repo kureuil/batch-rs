@@ -104,15 +104,6 @@ impl Delivery {
                 Some(_) => bail!("Incorrect type for `timelimit` header from delivery"),
                 None => (None, None),
             };
-            props.priority = match delivery.properties.priority() {
-                Some(1) => batch::Priority::Trivial,
-                Some(3) => batch::Priority::Low,
-                Some(5) => batch::Priority::Normal,
-                Some(7) => batch::Priority::High,
-                Some(9) => batch::Priority::Critical,
-                Some(_) => bail!("Invalid value for `priority` header from delivery"),
-                None => batch::Priority::default(),
-            };
             props
         };
         Ok(Delivery {

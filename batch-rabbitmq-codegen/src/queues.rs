@@ -25,13 +25,7 @@ enum QueueAttr {
 
 #[derive(Clone, Default)]
 struct QueueBindings {
-    bindings: Vec<QueueBinding>,
-}
-
-#[derive(Clone)]
-struct QueueBinding {
-    exchange: syn::Path,
-    jobs: Vec<syn::Path>,
+    bindings: Vec<syn::Path>,
 }
 
 #[derive(Clone)]
@@ -59,8 +53,7 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Name(s) => Some(s),
                 _ => None,
-            })
-            .next()
+            }).next()
     }
 
     fn with_priorities(&self) -> bool {
@@ -69,8 +62,7 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::WithPriorities(p) => Some(p.value),
                 _ => None,
-            })
-            .next()
+            }).next()
             .unwrap_or(false)
     }
 
@@ -80,8 +72,7 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Exclusive(e) => Some(e.value),
                 _ => None,
-            })
-            .next()
+            }).next()
             .unwrap_or(false)
     }
 
@@ -91,8 +82,7 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Bindings(b) => Some(b.clone()),
                 _ => None,
-            })
-            .next()
+            }).next()
             .unwrap_or_else(QueueBindings::default)
     }
 }
@@ -155,24 +145,10 @@ impl parse::Parse for QueueAttr {
 impl parse::Parse for QueueBindings {
     fn parse(input: parse::ParseStream) -> parse::Result<Self> {
         let content;
-        let _ = braced!(content in input);
-        let bindings: Punctuated<_, Token![,]> = content.parse_terminated(QueueBinding::parse)?;
+        let _ = bracketed!(content in input);
+        let bindings: Punctuated<_, Token![,]> = content.parse_terminated(syn::Path::parse)?;
         Ok(QueueBindings {
             bindings: bindings.into_iter().collect(),
-        })
-    }
-}
-
-impl parse::Parse for QueueBinding {
-    fn parse(input: parse::ParseStream) -> parse::Result<Self> {
-        let exchange = input.parse()?;
-        input.parse::<Token![=]>()?;
-        let content;
-        let _ = bracketed!(content in input);
-        let jobs: Punctuated<_, Token![,]> = content.parse_terminated(syn::Path::parse)?;
-        Ok(QueueBinding {
-            exchange,
-            jobs: jobs.into_iter().collect(),
         })
     }
 }
@@ -182,24 +158,13 @@ impl ToTokens for QueueBindings {
         let output = self
             .bindings
             .iter()
-            .fold(TokenStream::new(), |mut acc, el| {
-                el.to_tokens(&mut acc);
+            .fold(TokenStream::new(), |mut acc, job| {
+                let output = quote! {
+                    .bind::<#job>()
+                };
+                acc.extend(output);
                 acc
             });
-        dst.extend(output);
-    }
-}
-
-impl ToTokens for QueueBinding {
-    fn to_tokens(&self, dst: &mut TokenStream) {
-        let exchange = &self.exchange;
-        let mut output = quote!();
-        for job in &self.jobs {
-            output = quote! {
-                #output
-                .bind::<#exchange, #job>()
-            };
-        }
         dst.extend(output);
     }
 }
@@ -241,38 +206,36 @@ impl ToTokens for Queue {
             }
 
             #[doc(hidden)]
-            pub fn #ident(marker: #export::DeclareMarker) -> #ident {
-                match marker {}
+            pub fn #ident<J>(job: J) -> #export::Query<J, #ident>
+            where
+                J: #export::Job
+            {
+                #export::Query::new(job)
             }
 
             const #dummy_const: () = {
-                impl #export::Declare for #ident {
+                fn queue() -> #krate::Queue {
+                    #krate::Queue::build(#name.into())
+                        #bindings
+                        .finish()
+                }
+
+                impl #export::Queue for #ident {
                     const NAME: &'static str = #name;
 
-                    type Input = #krate::QueueBuilder;
+                    type CallbacksIterator = #export::Box<#export::Iterator<Item = (
+                        &'static str,
+                        fn(&[u8], &#export::Factory) -> #export::Box<#export::Future<Item = (), Error = #export::Error> + Send>
+                    )>>;
 
-                    type Output = #krate::Queue;
-
-                    type DeclareFuture = #export::Box<#export::Future<Item = Self, Error = #export::Error> + #export::Send>;
-
-                    fn declare(declarator: &mut (impl #export::Declarator<Self::Input, Self::Output> + 'static)) -> Self::DeclareFuture {
-                        use #export::Future;
-
-                        let task = #krate::Queue::builder(Self::NAME.into())
-                            // .with_priorities(true)
-                            // .exclusive(true)
-                            #bindings
-                            .declare(declarator)
-                            .map(|inner| #ident { inner });
-                        #export::Box::new(task)
+                    fn callbacks() -> Self::CallbacksIterator {
+                        Box::new(queue().callbacks())
                     }
                 }
 
-                impl #export::Callbacks for #ident {
-                    type Iterator = <#krate::Queue as #export::Callbacks>::Iterator;
-
-                    fn callbacks(&self) -> Self::Iterator {
-                        self.inner.callbacks()
+                impl #krate::Declare for #ident {
+                    fn declare(conn: &mut #krate::ConnectionBuilder) {
+                        queue().register(conn);
                     }
                 }
             };
