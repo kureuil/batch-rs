@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
+use humantime;
 use proc_macro;
 use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
+use std::time::Duration;
 use syn;
 use syn::parse;
 use syn::punctuated::Punctuated;
@@ -22,7 +24,7 @@ enum JobAttr {
     Wrapper(syn::Ident),
     Inject(HashSet<syn::Ident>),
     Retries(syn::LitInt),
-    Timeout(syn::LitInt),
+    Timeout(syn::LitStr, Duration),
     Priority(Priority),
 }
 
@@ -42,7 +44,7 @@ struct Job {
     name: String,
     wrapper: Option<syn::Ident>,
     retries: Option<syn::LitInt>,
-    timeout: Option<syn::LitInt>,
+    timeout: Option<Duration>,
     priority: Option<Priority>,
     injected: HashSet<syn::Ident>,
     injected_args: Vec<syn::FnArg>,
@@ -90,11 +92,11 @@ impl JobAttrs {
             }).next()
     }
 
-    fn timeout(&self) -> Option<syn::LitInt> {
+    fn timeout(&self) -> Option<(syn::LitStr, Duration)> {
         self.attrs
             .iter()
             .filter_map(|a| match a {
-                JobAttr::Timeout(t) => Some(t.clone()),
+                JobAttr::Timeout(r, p) => Some((r.clone(), p.clone())),
                 _ => None,
             }).next()
     }
@@ -152,7 +154,12 @@ impl parse::Parse for JobAttr {
         } else if lookahead.peek(kw::timeout) {
             input.parse::<kw::timeout>()?;
             input.parse::<Token![=]>()?;
-            Ok(JobAttr::Timeout(input.parse()?))
+            let raw: syn::LitStr = input.parse()?;
+            let parsed = match humantime::parse_duration(&raw.value()) {
+                Ok(parsed) => parsed,
+                Err(e) => return Err(parse::Error::new(raw.span(), e)),
+            };
+            Ok(JobAttr::Timeout(raw, parsed))
         } else if lookahead.peek(kw::priority) {
             input.parse::<kw::priority>()?;
             input.parse::<Token![=]>()?;
@@ -216,7 +223,7 @@ impl Job {
         };
         let wrapper = attrs.wrapper();
         let retries = attrs.retries();
-        let timeout = attrs.timeout();
+        let timeout = attrs.timeout().map(|t| t.1);
         let priority = attrs.priority();
         let injected = attrs.inject();
         let injected_args = Vec::new();
@@ -356,6 +363,7 @@ impl ToTokens for Job {
             }
         });
         let timeout = self.timeout.as_ref().map(|t| {
+            let t = t.as_secs();
             quote! {
                 fn timeout(&self) -> #export::Duration {
                     #export::Duration::from_secs(#t)

@@ -9,11 +9,11 @@
 
 #![recursion_limit = "256"]
 
+extern crate humantime;
 extern crate proc_macro;
 extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
-extern crate serde_derive;
 #[macro_use]
 extern crate syn;
 

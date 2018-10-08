@@ -10,7 +10,7 @@ authors = ["Louis Person <louis@person.guru>"]
 proc-macro = true
 
 [dependencies]
-serde_derive = "1.0"
+humantime = "1.1.1"
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = { version = "0.15", features = ["full", "visit-mut"] }
