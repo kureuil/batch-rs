@@ -70,7 +70,6 @@ extern crate uuid;
 extern crate wait_timeout;
 
 mod client;
-mod consumer;
 mod delivery;
 mod dispatch;
 pub mod dsl;
@@ -85,8 +84,7 @@ mod worker;
 
 #[cfg(feature = "codegen")]
 pub use batch_codegen::job;
-pub use client::Client;
-pub use consumer::{Consumer, ToConsumer};
+pub use client::{Client, Consumer};
 pub use delivery::Delivery;
 pub use dispatch::Dispatch;
 pub use factory::Factory;

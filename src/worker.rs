@@ -13,7 +13,7 @@ use std::sync::mpsc;
 use tokio_executor;
 use wait_timeout::ChildExt;
 
-use {Delivery, Factory, Query, Queue};
+use {Client, Delivery, Factory, Query, Queue};
 
 mod sealed {
     use failure::Error;
@@ -70,7 +70,7 @@ where
 
 impl<Conn> Worker<Conn>
 where
-    Conn: ::ToConsumer + Send + 'static,
+    Conn: Client + Send + 'static,
 {
     /// Create a new Worker.
     pub fn new(connection: Conn) -> Self {
@@ -93,6 +93,11 @@ where
     }
 
     /// Instruct the worker to consume jobs from the given queue.
+    ///
+    /// # Panics
+    ///
+    /// If the given provides a callback for a job already registered, and the callbacks don't
+    /// point to the same function, this method will panic.
     pub fn queue<Q>(mut self, _ctor: impl Fn(StubJob) -> Query<StubJob, Q>) -> Self
     where
         Q: Queue,
