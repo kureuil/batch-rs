@@ -21,6 +21,7 @@ enum QueueAttr {
     WithPriorities(syn::LitBool),
     Exclusive(syn::LitBool),
     Bindings(QueueBindings),
+    Exchange(syn::LitStr),
 }
 
 #[derive(Clone, Default)]
@@ -31,10 +32,11 @@ struct QueueBindings {
 #[derive(Clone)]
 struct Queue {
     ident: syn::Ident,
-    name: String,
+    name: syn::LitStr,
     with_priorities: bool,
     exclusive: bool,
     bindings: QueueBindings,
+    exchange: Option<syn::LitStr>,
 }
 
 impl IntoIterator for QueueAttrsList {
@@ -47,13 +49,14 @@ impl IntoIterator for QueueAttrsList {
 }
 
 impl QueueAttrs {
-    fn name(&self) -> Option<&syn::LitStr> {
+    fn name(&self) -> Option<syn::LitStr> {
         self.attrs
             .iter()
             .filter_map(|a| match a {
-                QueueAttr::Name(s) => Some(s),
+                QueueAttr::Name(s) => Some(s.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn with_priorities(&self) -> bool {
@@ -62,7 +65,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::WithPriorities(p) => Some(p.value),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or(false)
     }
 
@@ -72,7 +76,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Exclusive(e) => Some(e.value),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or(false)
     }
 
@@ -82,8 +87,19 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Bindings(b) => Some(b.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or_else(QueueBindings::default)
+    }
+
+    fn exchange(&self) -> Option<syn::LitStr> {
+        self.attrs
+            .iter()
+            .filter_map(|a| match a {
+                QueueAttr::Exchange(s) => Some(s.clone()),
+                _ => None,
+            })
+            .next()
     }
 }
 
@@ -115,6 +131,7 @@ mod kw {
     custom_keyword!(with_priorities);
     custom_keyword!(exclusive);
     custom_keyword!(bindings);
+    custom_keyword!(exchange);
 }
 
 impl parse::Parse for QueueAttr {
@@ -136,6 +153,10 @@ impl parse::Parse for QueueAttr {
             input.parse::<kw::bindings>()?;
             input.parse::<Token![=]>()?;
             Ok(QueueAttr::Bindings(input.parse()?))
+        } else if lookahead.peek(kw::exchange) {
+            input.parse::<kw::exchange>()?;
+            input.parse::<Token![=]>()?;
+            Ok(QueueAttr::Exchange(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -176,12 +197,13 @@ impl Queue {
         let queue = Queue {
             ident: attrs.ident.clone(),
             name: match attrs.name() {
-                Some(name) => name.value(),
+                Some(name) => name,
                 None => return Err(Error::spanned(ERR_MISSING_NAME, attrs.ident.span())),
             },
             with_priorities: attrs.with_priorities(),
             exclusive: attrs.exclusive(),
             bindings: attrs.bindings(),
+            exchange: attrs.exchange(),
         };
         Ok(queue)
     }
@@ -192,6 +214,7 @@ impl ToTokens for Queue {
         let ident = &self.ident;
         let name = &self.name;
         let bindings = &self.bindings;
+        let exchange = self.exchange.as_ref().unwrap_or(name);
         let krate = quote!(::batch_rabbitmq);
         let export = quote!(#krate::export);
 
@@ -216,6 +239,7 @@ impl ToTokens for Queue {
             const #dummy_const: () = {
                 fn queue() -> #krate::Queue {
                     #krate::Queue::build(#name.into())
+                        .exchange(#krate::Exchange::new(#exchange.into()))
                         #bindings
                         .finish()
                 }
