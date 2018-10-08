@@ -27,7 +27,7 @@ impl Factory {
     /// # Examples
     ///
     /// ```rust
-    /// use batch_core::Factory;
+    /// use batch::Factory;
     ///
     /// let factory = Factory::new();
     /// ```
@@ -42,7 +42,7 @@ impl Factory {
     /// # Examples
     ///
     /// ```rust
-    /// use batch_core::Factory;
+    /// use batch::Factory;
     /// # struct PgConn;
     ///
     /// fn init_pg_conn() -> PgConn {
@@ -62,7 +62,7 @@ impl Factory {
     /// # Examples
     ///
     /// ```rust
-    /// use batch_core::Factory;
+    /// use batch::Factory;
     /// # struct PgConn;
     ///
     /// let factory = Factory::new();

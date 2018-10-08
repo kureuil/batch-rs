@@ -36,6 +36,9 @@ tokio-executor = "0.1"
 uuid = { version = "0.6", features = ["v4", "serde"] }
 wait-timeout = "0.1.5"
 
+[dev-dependencies]
+batch-rabbitmq = { version = "0.2", path = "./batch-rabbitmq" }
+
 [features]
 default = ["codegen"]
 codegen = ["batch-codegen"]

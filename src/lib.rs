@@ -20,7 +20,7 @@
 //! extern crate tokio;
 //!
 //! use batch::{job, Query};
-//! use batch_rabbitmq::{self, queues};
+//! use batch_rabbitmq::queues;
 //! use tokio::prelude::*;
 //!
 //! queues! {
@@ -38,16 +38,17 @@
 //! }
 //!
 //! fn main() {
-//!     let conn = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost/%2f")
-//!         .and_then(|mut client| client.declare(Notifications).map(|_| client))
-//!         .and_then(|client| {
+//!     let fut = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost/%2f")
+//!         .declare(Notifications)
+//!         .connect()
+//!         .and_then(|mut client| {
 //!             let job = say_hello(String::from("Ferris"));
-//!             Notifications(job).dispatch(&client)
+//!             Notifications(job).dispatch(&mut client)
 //!         });
 //!
 //! # if false {
 //!     tokio::run(
-//!         send.map_err(|e| eprintln!("Couldn't publish message: {}", e))
+//!         fut.map_err(|e| eprintln!("Couldn't publish message: {}", e))
 //!     );
 //! # }
 //! }
