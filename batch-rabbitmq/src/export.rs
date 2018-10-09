@@ -1,4 +1,3 @@
-pub use batch::dsl::With;
 pub use batch::{Factory, Job, Query, Queue};
 pub use failure::Error;
 pub use futures::Future;

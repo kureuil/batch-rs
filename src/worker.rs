@@ -38,6 +38,8 @@ mod sealed {
 
 use self::sealed::StubJob;
 
+/// A worker executes jobs fetched by consuming from a client.
+///
 /// The worker is responsible for polling the broker for jobs, deserializing them and execute
 /// them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
 /// `Broker` implementation is completely customizable by the user.

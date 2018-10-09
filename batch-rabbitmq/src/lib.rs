@@ -32,7 +32,7 @@ mod consumer;
 mod declare;
 mod delivery;
 mod exchange;
-/// Not public API.
+/// Not public API. This module is exempt from any semver guarantees.
 #[doc(hidden)]
 pub mod export;
 mod queue;

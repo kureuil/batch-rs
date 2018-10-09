@@ -59,7 +59,7 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     }
 }
 
-/// Message properties.
+/// Various metadata for a job.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Properties {
     /// The language in which the job was created.

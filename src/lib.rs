@@ -3,14 +3,15 @@
 //! Batch allow a program (the *"Client"*) to defer a unit of work (the *"Job"*), until a background process (the
 //! *"Worker"*)  picks it up and executes it. This is very common in web development where you don't want to slow down
 //! an HTTP request for a behaviour that doesn't has to be done synchronously (e.g: sending a mail when a user signs
-//! up).
+//! up). Batch is compatible and should run correctly on Windows, macOS and Linux.
 //!
-//! Batch provides you with adapters for popular message brokers and an implementation of a `Worker` that should work
-//! well enough in most situations:
+//! Batch can work with any message broker as long as a `Client` can be implemented for it. The Batch project is
+//! responsible for the development & maintenance of the following adapters:
 //!
-//! * [RabbitMQ](rabbitmq/index.html)
-//! * Faktory
-//! * Amazon SQS
+//! * [RabbitMQ](https://docs.rs/batch-rabbitmq/0.2)
+//!
+//! Batch provides a worker implementation with sensible defaults that supports parallelism and job timeouts out of
+//! the box, on all supported platforms.
 //!
 //! # Example
 //!
@@ -72,8 +73,7 @@ extern crate wait_timeout;
 mod client;
 mod delivery;
 mod dispatch;
-pub mod dsl;
-/// Not public API.
+/// Not public API. This module is exempt from any semver guarantees.
 #[doc(hidden)]
 pub mod export;
 mod factory;
