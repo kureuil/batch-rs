@@ -173,7 +173,13 @@ impl Connection {
     }
 }
 
-impl batch::ToConsumer for Connection {
+impl batch::Client for Connection {
+    type SendFuture = SendFuture;
+
+    fn send(&mut self, dispatch: batch::Dispatch) -> Self::SendFuture {
+        SendFuture(self.inner.publisher.clone().send(dispatch))
+    }
+
     type Consumer = Consumer;
 
     type ToConsumerFuture = Box<Future<Item = Self::Consumer, Error = Error> + Send>;
@@ -300,14 +306,6 @@ impl Future for SendFuture {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(Error::from(e)),
         }
-    }
-}
-
-impl batch::Client for Connection {
-    type SendFuture = SendFuture;
-
-    fn send(&mut self, dispatch: batch::Dispatch) -> Self::SendFuture {
-        SendFuture(self.inner.publisher.clone().send(dispatch))
     }
 }
 

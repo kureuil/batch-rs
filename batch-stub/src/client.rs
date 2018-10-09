@@ -1,6 +1,6 @@
 use batch;
 use failure::Error;
-use futures::future;
+use futures::{self, future};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -75,6 +75,46 @@ impl Client {
     }
 }
 
+pub struct Delivery;
+
+impl batch::Delivery for Delivery {
+    fn properties(&self) -> &batch::Properties {
+        unimplemented!();
+    }
+
+    fn payload(&self) -> &[u8] {
+        unimplemented!();
+    }
+
+    type AckFuture = Box<futures::Future<Item = (), Error = Error> + Send>;
+
+    fn ack(self) -> Self::AckFuture {
+        unimplemented!();
+    }
+
+    type RejectFuture = Box<futures::Future<Item = (), Error = Error> + Send>;
+
+    fn reject(self) -> Self::RejectFuture {
+        unimplemented!();
+    }
+}
+
+pub struct Consumer;
+
+impl futures::Stream for Consumer {
+    type Item = Delivery;
+
+    type Error = Error;
+
+    fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
+        unimplemented!();
+    }
+}
+
+impl batch::Consumer for Consumer {
+    type Delivery = Delivery;
+}
+
 impl batch::Client for Client {
     type SendFuture = future::FutureResult<(), Error>;
 
@@ -86,5 +126,16 @@ impl batch::Client for Client {
             .or_insert_with(Vec::new)
             .push(dispatch);
         future::ok(())
+    }
+
+    type Consumer = Consumer;
+
+    type ToConsumerFuture = Box<futures::Future<Item = Self::Consumer, Error = Error> + Send>;
+
+    fn to_consumer(
+        &mut self,
+        _queues: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Self::ToConsumerFuture {
+        unimplemented!();
     }
 }

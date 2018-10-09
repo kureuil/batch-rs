@@ -10,14 +10,17 @@ The format is based on [Keep a Changelog] and this project adheres to
 ## [Unreleased]
 ### Changed
 - Batch is now split up in multiple crates, making it a lot more modular.
+- Batch is now built on top of the new Tokio runtime.
 - **all**: The terminology was changed from "task" to "job".
 
 ### Added
-- **core**: Added support for job priorities, with 5 levels of granularity: `TRIVIAL`, `LOW`, `NORMAL` (default), `HIGH`, `CRITICAL`.
 - **codegen**: The `job` procedural macro to declare jobs.
-- **core:** A bunch of traits to allow the use of other message brokers than RabbitMQ.
+- **core**: Added support for job priorities, with 5 levels of granularity: `trivial`, `low`, `normal` (default), `high`, `critical`.
+- **core**: A brand new `Query` interface, more strongly typed.
+- **core:** The `Client` trait allows the use of other message brokers than RabbitMQ.
 - **core**: The `Properties` struct, store the metadata associated to a job (timeout, priority, name, etc).
-- **rabbitmq**: The `exchanges` and `queues` procedural macros, used to declare RabbitMQ exchanges and queues, which APIs are more strongly typed.
+- **rabbitmq**: The `queues` procedural macro, used to declare RabbitMQ exchanges and queues.
+- **rabbitmq**: Two new examples (standalone & warp) to help users set up the library in their project.
 
 ### Fixed
 - **rabbitmq:** Exchange name not being used when publishing a task to RabbitMQ.
