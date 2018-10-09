@@ -6,52 +6,48 @@ Maintaining such guarantees means that this `Worker` implementation isn't the mo
 
 ## Adding a worker to your project
 
-The easiest way to integrate the forking worker is to create a new binary (e.g: `src/bin/worker.rs`). This makes sure that your main command-line interface will not conflict with the worker, and vice-versa. The `Worker` struct is built using a `Connection` instance, this makes it possible to use the same `Worker` implementation with any message broker adapter. In this example, we will be using the RabbitMQ adapter:
+The easiest way to integrate the forking worker is to create a new binary (e.g: `src/bin/worker.rs`). This makes sure that your main command-line interface will not conflict with the worker, and vice-versa. The `Worker` struct is built using a `Client` instance, this makes it possible to use the same `Worker` implementation with any message broker adapter. In this example, we will be using the RabbitMQ adapter:
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
-use batch::{job, Declare};
-use batch::rabbitmq::{self, exchanges, queues};
+use batch::job;
+use batch_rabbitmq::queues;
 use batch::Worker;
 use tokio::prelude::*;
 
-exchanges! {
-	ExampleExchange {
-		name = "example"
-	}
-}
-
 queues! {
-	ExampleQueue {
-		name = "example",
-		bindings = {
-			ExampleExchange = [
-				say_hello
-			]
-		}
-	}
+    Example {
+        name = "example",
+        bindings = [
+            say_hello
+        ]
+    }
 }
 
 #[job(name = "batch-example.say-hello")]
 fn say_hello(name: String) {
-	println!("Hello {}!", name);
+    println!("Hello {}!", name);
 }
 
 fn main() {
-	// First, we connect to our message broker
-	let f = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-	// ExampleExchange being a dependency of ExampleQueue, we declare it upfront
-		.and_then(|mut conn| ExampleExchange::declare(&mut conn).map(|_| conn))
-	// Then, we create our worker instance
-		.map(|conn| Worker::new(conn))
-	// Here we declare the queue we will consume from
-		.and_then(|worker| worker.declare::<ExampleQueue>())
-	// And finally, we consume incoming jobs
-		.and_then(|worker| worker.run())
-		.map_err(|e| eprintln!("An error occured: {}", e));
-	tokio::run(f);
+    // First, we configure the connection to our message broker
+    let f = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        // We declare our queue & exchange against RabbitMQ
+        .declare(Example)
+        // We establish the connection
+        .connect()
+        // Then, we create our worker instance & register the queue we will consume from
+        .map(|client| Worker::new(client).queue(Example))
+        // And finally, we consume incoming jobs
+        .and_then(|worker| worker.work())
+        .map_err(|e| eprintln!("An error occured: {}", e));
+
+# if false {
+    tokio::run(f);
+# }
 }
 ```
 
@@ -61,54 +57,52 @@ Some of your jobs will undoubtly have to depend on values that can't be serializ
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
-use batch::{job, Declare};
-use batch::rabbitmq::{self, exchanges, queues};
+use batch::job;
+use batch_rabbitmq::queues;
 use tokio::prelude::*;
 #
 # mod diesel {
-# 	pub struct PgConn;
+#   pub struct PgConn;
 # }
 
-exchanges! {
-	MaintenanceEx {
-		name = "maintenance"
-	}
-}
-
 queues! {
-	MaintenanceQ {
-		name = "maintenance",
-		bindings = {
-			MaintenanceEx = [
-				count_active_users
-			]
-		}
-	}
+    Maintenance {
+        name = "maintenance",
+        bindings = [
+            count_active_users
+        ]
+    }
 }
 
 #[job(name = "batch-example.count-active-users", inject = [ db ])]
 fn count_active_users(db: diesel::PgConn) {
-	# drop(db);
-	// ...
+    # drop(db);
+    // ...
 }
 
 fn init_database_conn() -> diesel::PgConn {
-	// ...
+    // ...
 #     diesel::PgConn
 }
 
 fn main() {
-	let fut = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-		.map(|conn|
-			batch::Worker::new(conn)
-				.provide(init_database_conn)
-		)
-		.and_then(|worker| worker.declare::<MaintenanceQ>())
-		.and_then(|worker| worker.run())
-		.map_err(|e| eprintln!("An error occured while executing the worker: {}", e));
-	tokio::run(fut);
+    let f = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        .declare(Maintenance)
+        .connect()
+        .map(|conn|
+            batch::Worker::new(conn)
+                .provide(init_database_conn)
+                .queue(Maintenance)
+        )
+        .and_then(|worker| worker.work())
+        .map_err(|e| eprintln!("An error occured while executing the worker: {}", e));
+
+# if false {
+    tokio::run(f);
+# }
 }
 ```
 

@@ -1,30 +1,35 @@
 # Exchanges
 
-When you're using RabbitMQ, an exchange is the place where you will publish your messages. Before being able to use an exchange, you must first declare it:
+In RabbitMQ parlance you don't publish messages to a queue but to an exchange. Batch abstracts away this behavior behind a unified `Queue` trait. When you declare your queue, an exchange with the same name is implicitly declared. But sometimes you want to have control about what example declared and how. To do that, you can use the `exchange` property of the `queues!` macro:
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
-use batch::Declare;
-use batch::rabbitmq::{self, exchanges};
-use tokio::prelude::Future;
+use batch_rabbitmq::queues;
+use tokio::prelude::*;
 
-exchanges! {
+queues! {
     Example {
-        name = "batch.example"
+        name = "batch.example",
+        exchange = "batch.example-exchange",
     }
 }
 
 fn main() {
-    let fut = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .and_then(|mut conn| Example::declare(&mut conn))
-        .and_then(|transcoding| {
-#           drop(transcoding);
-            /* The `Transcoding` exchange is now declared. */
+    let fut = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        .declare(Example)
+        .connect()
+        .and_then(|client| {
+#           drop(client);
+            /* The `batch.example-exchange` exchange is now declared. */
             Ok(())
         })
-        .map_err(|e| eprintln!("An error occured while declaring the exchange: {}", e));
+        .map_err(|e| eprintln!("An error occured while declaring the queue: {}", e));
+
+# if false {
     tokio::run(fut);
+# }
 }
 ```

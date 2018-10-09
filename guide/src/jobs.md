@@ -78,18 +78,32 @@ extern crate batch;
 
 use batch::job;
 
-// This job will have 1 minute (60 seconds) to complete.
-#[job(name = "batch-example.send-hello", timeout = 60)]
+// This job will have 1 minute to complete.
+#[job(name = "batch-example.send-hello", timeout = "1minute")]
 fn send_hello(to: String) {
 	println!("Hello {}", to);
 }
 
-// This job will have 3 hours (10800 seconds) to complete.
-#[job(name = "batch-example.send-goodbye", timeout = 10800)]
+// This job will have 3 hours and 30 minutes to complete.
+#[job(name = "batch-example.send-goodbye", timeout = "3hours 30mins")]
 fn send_goodbye(to: String) {
 	println!("Goodbye {}", to);
 }
 ```
+
+The timeout parser supports the given suffixes:
+
+* `nsec`, `ns` *-- microseconds*
+* `usec`, `us` *-- microseconds*
+* `msec`, `ms` *-- milliseconds*
+* `seconds`, `second`, `sec`, `s`
+* `minutes`, `minute`, `min`, `m`
+* `hours`, `hour`, `hr`, `h`
+* `days`, `day`, `d`
+* `weeks`, `week`, `w`
+* `months`, `month`, `M` *-- defined as 30.44 days*
+* `years`, `year`, `y` *-- defined as 365.25 days*
+
 
 ### Changing the job priority
 

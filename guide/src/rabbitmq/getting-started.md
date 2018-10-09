@@ -6,19 +6,22 @@ Let's begin by connection to a broker:
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
-use batch::rabbitmq;
 use tokio::prelude::*;
 
 fn main() {
-    let f = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .map(|_conn| {
+    let f = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
+        .map(|conn| {
+#           drop(conn);
             println!("We're connected to RabbitMQ!");
         })
         .map_err(|e| eprintln!("An error occured while connecting to RabbitMQ: {}", e));
 
+# if false {
     tokio::run(f);
+# }
 }
 ```
 
@@ -26,10 +29,10 @@ Now that we've acquired a connection to our RabbitMQ server, we'll write our fir
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
 use batch::job;
-use batch::rabbitmq;
 use tokio::prelude::*;
 
 #[job(name = "batch-example.say-hello")]
@@ -38,13 +41,16 @@ fn say_hello(name: String) {
 }
 
 fn main() {
-    let f = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .map(|_conn| {
+    let f = batch_rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
+        .map(|conn| {
+#           drop(conn);
             println!("We're connected to RabbitMQ!");
         })
         .map_err(|e| eprintln!("An error occured while connecting to RabbitMQ: {}", e));
 
+# if false {
     tokio::run(f);
+# }
 }
 ```
 
@@ -52,19 +58,23 @@ fn main() {
 
 > **Note**: The string given to the `job` procedural macro as a parameter of the name of the job. You should strive for unique job names, ideally structured by domain (e.g: prefix all jobs related to media files compression by `"media-compress."`).
 
-Now that we have our job, we want to send it to our RabbitMQ server. To do that we need to declare an exchange, to do that we need to use the `exchanges!` macro:
+Now that we have our job, we want to send it to our RabbitMQ server. To do that we need to declare a queue, using the `queues!` macro:
 
 ```rust
 extern crate batch;
+extern crate batch_rabbitmq;
 extern crate tokio;
 
-use batch::{job, Declare};
-use batch::rabbitmq::{self, exchanges};
+use batch::job;
+use batch_rabbitmq::queues;
 use tokio::prelude::*;
 
-exchanges! {
+queues! {
     Example {
-        name = "batch-example.exchange"
+        name = "batch-example.exchange",
+        bindings = [
+            say_hello,
+        ],
     }
 }
 
@@ -74,21 +84,23 @@ fn say_hello(name: String) {
 }
 
 fn main() {
-    let f = rabbitmq::Connection::open("amqp://guest:guest@localhost:5672/%2f")
-        .and_then(|mut conn| Example::declare(&mut conn))
-        .map(|exchange| {
-            use batch::dsl::*;
-
+    let f = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        .declare(Example)
+        .connect()
+        .and_then(|mut client| {
             let job = say_hello("Ferris".to_string());
-            exchange.with(job).deliver()
+            Example(job).dispatch(&mut client)
         })
-        .map(|_| ())
         .map_err(|e| eprintln!("An error occured while connecting to RabbitMQ: {}", e));
 
+# if false {
     tokio::run(f);
+# }
 }
 ```
 
-Now that our job has been published to our broker, we'll need to fetch it and assign a function to this job. To do this, we'll create a new program, the *[worker]*.
+> Note how we're declaring the exchange by giving its name as a parameter and not by using the infamous turbofish syntax.
+
+Now that our job has been published to our broker, we'll need to fetch it and assign a function to this job. To do this, we'll create a new program, a *[worker]*.
 
 [worker]: ../worker/index.html
