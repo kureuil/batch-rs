@@ -43,7 +43,7 @@ matrix:
     - export MDBOOK_VERSION=0.2.1
     - "wget -O mdbook.tar.gz https://github.com/rust-lang-nursery/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz"
     - tar xf mdbook.tar.gz
-    - cargo build --all-features
+    - cargo build --all --all-features
     - ./mdbook test ./guide -L target/debug/deps
 
 before_install:
