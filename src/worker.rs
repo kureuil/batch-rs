@@ -1,7 +1,7 @@
 //! Batch Worker.
 
 use failure::{self, Error};
-use futures::{self, future, Future, Stream};
+use futures::{self, future, Future, Poll, Stream};
 use log::{debug, error, warn};
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -49,35 +49,52 @@ use self::sealed::StubJob;
 /// Even if this is slower than just executing the function in a threadpool, it allows much more
 /// control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
 /// protects against unpredictable crashes.
-pub struct Worker<Conn> {
-    connection: Conn,
+pub struct Worker<C> {
+    client: C,
     queues: HashSet<String>,
     factory: Factory,
     callbacks:
         HashMap<String, fn(&[u8], &::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
 }
 
-impl<Conn> fmt::Debug for Worker<Conn>
+impl<C> fmt::Debug for Worker<C>
 where
-    Conn: fmt::Debug,
+    C: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Worker")
-            .field("connection", &self.connection)
+            .field("client", &self.client)
             .field("queues", &self.queues)
             .field("callbacks", &self.callbacks.keys())
             .finish()
     }
 }
 
-impl<Conn> Worker<Conn>
+impl<C> Worker<C>
 where
-    Conn: Client + Send + 'static,
+    C: Client + Send + 'static,
 {
-    /// Create a new Worker.
-    pub fn new(connection: Conn) -> Self {
+    /// Create a new `Worker` from a `Client` implementation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate batch;
+    /// # extern crate batch_stub;
+    /// #
+    /// # use batch::Client;
+    /// #
+    /// # fn make_client() -> impl Client {
+    /// #     ::batch_stub::Client::new()
+    /// # }
+    /// use batch::Worker;
+    ///
+    /// let client = make_client();
+    /// let worker = Worker::new(client);
+    /// ```
+    pub fn new(client: C) -> Self {
         Worker {
-            connection,
+            client,
             factory: Factory::new(),
             queues: HashSet::new(),
             callbacks: HashMap::new(),
@@ -85,6 +102,8 @@ where
     }
 
     /// Provide a constructor for a given type.
+    ///
+    /// See [`Factory::provide`].
     pub fn provide<F, T>(mut self, init: F) -> Self
     where
         T: 'static,
@@ -95,6 +114,9 @@ where
     }
 
     /// Instruct the worker to consume jobs from the given queue.
+    ///
+    /// Note how the function takes a function returning a `Query` as parameter: you're not
+    /// supposed to write this function yourself, it should be provided by your Batch adapter.
     ///
     /// # Panics
     ///
@@ -119,7 +141,7 @@ where
     }
 
     /// Consume deliveries from all of the declared resources.
-    pub fn work(self) -> impl Future<Item = (), Error = Error> + Send {
+    pub fn work(self) -> Work {
         if let Ok(job) = env::var("BATCHRS_WORKER_IS_EXECUTOR") {
             let (tx, rx) = mpsc::channel::<Result<(), Error>>();
             let tx2 = tx.clone();
@@ -131,11 +153,11 @@ where
             rx.recv().unwrap().unwrap();
             process::exit(0);
         }
-        self.supervise()
+        Work(Box::new(self.supervise()))
     }
 
     fn supervise(mut self) -> impl Future<Item = (), Error = Error> + Send {
-        self.connection
+        self.client
             .to_consumer(self.queues.clone().into_iter())
             .and_then(move |consumer| {
                 consumer.for_each(move |delivery| {
@@ -194,6 +216,27 @@ where
             }
         };
         Box::new((*handler)(&input, &self.factory)) as Box<Future<Item = (), Error = Error> + Send>
+    }
+}
+
+/// The future returned when calling `Worker::work`.
+#[must_use = "futures do nothing unless polled"]
+pub struct Work(Box<Future<Item = (), Error = Error> + Send>);
+
+impl fmt::Debug for Work {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Work")
+            .finish()
+    }
+}
+
+impl Future for Work {
+    type Item = ();
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 

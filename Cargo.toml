@@ -38,6 +38,7 @@ wait-timeout = "0.1.5"
 
 [dev-dependencies]
 batch-rabbitmq = { version = "0.2", path = "./batch-rabbitmq" }
+batch-stub = { version = "0.2", path = "./batch-stub" }
 
 [features]
 default = ["codegen"]

@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 /// A type-aware factory.
+///
+/// It is used to provide job author with something that resemble Dependency Injection.
 pub struct Factory {
     inner: HashMap<TypeId, Box<dyn Any + Send + Sync + 'static>>,
 }

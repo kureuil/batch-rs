@@ -141,6 +141,7 @@ impl Delivery {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct Acknowledge(Box<Future<Item = (), Error = Error> + Send>);
 
 impl fmt::Debug for Acknowledge {
@@ -159,6 +160,7 @@ impl Future for Acknowledge {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct Reject(Box<Future<Item = (), Error = Error> + Send>);
 
 impl fmt::Debug for Reject {

@@ -62,6 +62,7 @@
 #[cfg(feature = "codegen")]
 extern crate batch_codegen;
 extern crate failure;
+#[macro_use]
 extern crate futures;
 extern crate log;
 extern crate serde;
@@ -89,6 +90,6 @@ pub use delivery::Delivery;
 pub use dispatch::Dispatch;
 pub use factory::Factory;
 pub use job::{Job, Properties};
-pub use query::Query;
+pub use query::{Query, SendDispatch};
 pub use queue::Queue;
-pub use worker::Worker;
+pub use worker::{Work, Worker};
