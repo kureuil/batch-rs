@@ -44,7 +44,8 @@ impl Stream {
                                 .map_err(|e| e.into())
                                 .into_future()
                                 .map(|s| (s, connector))
-                        }).and_then(move |(stream, connector)| {
+                        })
+                        .and_then(move |(stream, connector)| {
                             connector
                                 .connect_async(&host, stream)
                                 .map(Stream::Tls)

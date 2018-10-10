@@ -61,7 +61,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Name(s) => Some(s.value()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn wrapper(&self) -> Option<syn::Ident> {
@@ -70,7 +71,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Wrapper(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn inject(&self) -> HashSet<syn::Ident> {
@@ -79,7 +81,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Inject(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or_else(HashSet::new)
     }
 
@@ -89,7 +92,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Retries(r) => Some(r.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn timeout(&self) -> Option<(syn::LitStr, Duration)> {
@@ -98,7 +102,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Timeout(r, p) => Some((r.clone(), p.clone())),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn priority(&self) -> Option<Priority> {
@@ -107,7 +112,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Priority(p) => Some(p.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 }
 
@@ -521,7 +527,8 @@ pub fn impl_macro(
             .fold(TokenStream::new(), |mut acc, err| {
                 err.to_tokens(&mut acc);
                 acc
-            }).into()
+            })
+            .into()
     } else {
         let output = quote! {
             #job

@@ -126,7 +126,7 @@ where
     /// ```
     pub fn dispatch<C>(self, client: &mut C) -> SendDispatch<C, J>
     where
-        C: Client
+        C: Client,
     {
         let client = client.clone();
         SendDispatch {
@@ -141,7 +141,7 @@ where
 #[must_use = "futures do nothing unless polled"]
 pub struct SendDispatch<C, J>
 where
-    C: Client
+    C: Client,
 {
     client: C,
     state: DispatchState<J, C::SendFuture>,
@@ -165,7 +165,11 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let state = match self.state {
             DispatchState::Raw(destination, ref mut job, ref mut props) => {
-                let dispatch = Dispatch::new(destination.into(), job.take().unwrap(), props.take().unwrap())?;
+                let dispatch = Dispatch::new(
+                    destination.into(),
+                    job.take().unwrap(),
+                    props.take().unwrap(),
+                )?;
                 DispatchState::Polling(self.client.send(dispatch))
             }
             DispatchState::Polling(ref mut f) => {

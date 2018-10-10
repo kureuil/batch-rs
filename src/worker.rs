@@ -225,8 +225,7 @@ pub struct Work(Box<Future<Item = (), Error = Error> + Send>);
 
 impl fmt::Debug for Work {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Work")
-            .finish()
+        f.debug_struct("Work").finish()
     }
 }
 
