@@ -71,6 +71,7 @@ before_deploy:
 - export MDBOOK_VERSION=0.2.1
 - "wget -O mdbook.tar.gz https://github.com/rust-lang-nursery/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz"
 - tar xf mdbook.tar.gz
+- cargo install mdbook-linkcheck
 - ./mdbook build ./guide
 
 deploy:
