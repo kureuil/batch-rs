@@ -233,7 +233,7 @@ impl ToTokens for Queue {
 
             const #dummy_const: () = {
                 fn queue() -> #krate::Queue {
-                    #krate::Queue::build(#name.into())
+                    #krate::Queue::build(#name)
                         .exchange(#krate::Exchange::new(#exchange))
                         #bindings
                         .finish()

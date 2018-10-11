@@ -11,11 +11,17 @@ use lapin::types::AMQPValue;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Completion {
+pub(crate) enum Completion {
     Acknowledge(u64),
     Reject(u64),
 }
 
+/// A delivery is a message received from RabbitMQ.
+///
+/// Deliveries must be either acked or rejected before being dropped to signal RabbitMQ of the
+/// status of the associated job. If RabbitMQ doesn't get a response once the Time To Live of
+/// the delivery has expired, the delivery is marked as rejected and set to be retried. You can do
+/// so using the methods provided by the [`batch::Delivery`] trait.
 #[derive(Debug)]
 pub struct Delivery {
     payload: Vec<u8>,
@@ -25,7 +31,7 @@ pub struct Delivery {
 }
 
 impl Delivery {
-    pub fn new(
+    pub(crate) fn new(
         delivery: message::Delivery,
         channel: mpsc::Sender<Completion>,
     ) -> Result<Self, Error> {
@@ -113,34 +119,9 @@ impl Delivery {
             channel,
         })
     }
-
-    pub fn payload(&self) -> &[u8] {
-        &self.payload
-    }
-
-    pub fn properties(&self) -> &batch::Properties {
-        &self.properties
-    }
-
-    pub fn ack(self) -> Acknowledge {
-        let task = self
-            .channel
-            .send(Completion::Acknowledge(self.delivery_tag))
-            .map(|_| ())
-            .map_err(Error::from);
-        Acknowledge(Box::new(task))
-    }
-
-    pub fn reject(self) -> Reject {
-        let task = self
-            .channel
-            .send(Completion::Reject(self.delivery_tag))
-            .map(|_| ())
-            .map_err(Error::from);
-        Reject(Box::new(task))
-    }
 }
 
+/// Future returned when acking a [`Delivery`] with [`batch::Delivery::ack`].
 #[must_use = "futures do nothing unless polled"]
 pub struct Acknowledge(Box<Future<Item = (), Error = Error> + Send>);
 
@@ -160,6 +141,7 @@ impl Future for Acknowledge {
     }
 }
 
+/// Future returned when rejecting a [`Delivery`] with [`batch::Delivery::reject`].
 #[must_use = "futures do nothing unless polled"]
 pub struct Reject(Box<Future<Item = (), Error = Error> + Send>);
 
@@ -185,18 +167,28 @@ impl batch::Delivery for Delivery {
     type RejectFuture = Reject;
 
     fn payload(&self) -> &[u8] {
-        self.payload()
+        &self.payload
     }
 
     fn properties(&self) -> &batch::Properties {
-        self.properties()
+        &self.properties
     }
 
     fn ack(self) -> Self::AckFuture {
-        self.ack()
+        let task = self
+            .channel
+            .send(Completion::Acknowledge(self.delivery_tag))
+            .map(|_| ())
+            .map_err(Error::from);
+        Acknowledge(Box::new(task))
     }
 
     fn reject(self) -> Self::RejectFuture {
-        self.reject()
+        let task = self
+            .channel
+            .send(Completion::Reject(self.delivery_tag))
+            .map(|_| ())
+            .map_err(Error::from);
+        Reject(Box::new(task))
     }
 }

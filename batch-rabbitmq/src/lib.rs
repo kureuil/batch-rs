@@ -2,7 +2,7 @@
 
 #![doc(html_root_url = "https://docs.rs/batch-rabbitmq/0.2.0")]
 #![deny(missing_debug_implementations)]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 extern crate amq_protocol;
 extern crate batch;
@@ -40,7 +40,7 @@ mod stream;
 
 #[cfg(feature = "codegen")]
 pub use batch_rabbitmq_codegen::queues;
-pub use connection::{Builder as ConnectionBuilder, Connection};
+pub use connection::{Builder as ConnectionBuilder, Connect, Connection};
 pub use declare::Declare;
 pub use delivery::{Acknowledge, Delivery, Reject};
 pub use exchange::{Builder as ExchangeBuilder, Exchange, Kind as ExchangeKind};

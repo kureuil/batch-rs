@@ -65,6 +65,9 @@ fn amqp_properties(properties: &batch::Properties) -> BasicProperties {
         .with_headers(headers)
 }
 
+/// Builder for RabbitMQ `Connection`.
+///
+/// You can obtain an instance of this builder via the [`Connection::build`] method.
 #[derive(Debug)]
 pub struct Builder<'u> {
     uri: &'u str,
@@ -79,6 +82,33 @@ impl<'u> Builder<'u> {
         }
     }
 
+    /// Declare a queue.
+    ///
+    /// The given queue is not declared immediately but registered to be declared once we will
+    /// connect to the RabbitMQ server.
+    ///
+    /// **Note**: This function takes a function taking a `StubJob` (deliberately not exposed) as
+    /// parameter and returning a `Query`. The only type of importance here is the `Queue` type
+    /// associated to the `Query`. We're using this syntax to circumvent the turbofish syntax.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use batch_rabbitmq::{queues};
+    ///
+    /// queues! {
+    ///     Transcoding {
+    ///         name = "transcoding"
+    ///     }
+    /// }
+    ///
+    /// fn example() {
+    ///     // ...
+    ///     let builder = Connection::build("amqp://guest:guest@localhost:5672/%2f")
+    ///         .declare(Transcoding);
+    ///     // ...
+    /// }
+    /// ```
     pub fn declare<Q>(mut self, _ctor: impl Fn(StubJob) -> batch::Query<StubJob, Q>) -> Builder<'u>
     where
         Q: batch::Queue + Declare,
@@ -87,9 +117,32 @@ impl<'u> Builder<'u> {
         self
     }
 
-    pub fn connect(self) -> impl Future<Item = Connection, Error = Error> {
+    /// Connect to the RabbitMQ server & declare registered resources.
+    ///
+    /// This method consumes the builder instance and returns a [`Connect`] future.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate batch_rabbitmq;
+    /// # extern crate tokio;
+    /// #
+    /// use batch_rabbitmq::Connection;
+    /// use tokio::prelude::Future;
+    ///
+    /// let fut = Connection::build("amqp://guest:guest@localhost:5672/%2f")
+    ///     .connect();
+    ///
+    /// # if false {
+    /// tokio::run(
+    ///     fut.map(|_| ())
+    ///         .map_err(|e| eprintln!("An error occured: {}", e))
+    /// );
+    /// # }
+    /// ```
+    pub fn connect(self) -> Connect {
         let queues = self.queues;
-        AMQPUri::from_str(self.uri)
+        let fut = AMQPUri::from_str(self.uri)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e).into())
             .into_future()
             .and_then(|uri| stream::Stream::new(uri.clone()).map(|s| (s, uri)))
@@ -138,11 +191,38 @@ impl<'u> Builder<'u> {
                             inner: Arc::new(inner),
                         }
                     })
-            })
+            });
+        Connect(Box::new(fut))
+    }
+}
+
+/// The future returned by [`Builder::connect`].
+#[must_use = "futures do nothing unless polled"]
+pub struct Connect(Box<dyn Future<Item = Connection, Error = Error> + Send>);
+
+impl fmt::Debug for Connect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Connect")
+            .finish()
+    }
+}
+
+impl Future for Connect {
+    type Item = Connection;
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
 /// Connection to the RabbitMQ server.
+///
+/// Because this type doesn't interact directly with the network socket, it is safe to use
+/// concurrently from multiple threads, although the [`batch::Client`] trait imposes a mutable
+/// borrow publish a job. As mandated by the [`batch::Client`] trait, cloning this type has been
+/// made as cheap as possible.
 #[derive(Clone)]
 pub struct Connection {
     inner: Arc<Inner>,
@@ -163,11 +243,46 @@ impl fmt::Debug for Connection {
 }
 
 impl Connection {
+    /// Create a new [`Builder`] for this connection.
+    ///
+    /// The given URI must follow RabbitMQ's [URI specification].
+    ///
+    /// [URI specification]: https://www.rabbitmq.com/uri-spec.html
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use batch_rabbitmq::Connection;
+    ///
+    /// let builder = Connection::build("amqp://guest:guest@localhost:5672/%2f");
+    /// ```
     pub fn build<'u>(uri: &'u str) -> Builder<'u> {
         Builder::new(uri)
     }
 
-    pub fn open(uri: &str) -> impl Future<Item = Connection, Error = Error> {
+    /// Connects to the server at the given URI.
+    ///
+    /// The given URI must follow RabbitMQ's [URI specification].
+    ///
+    /// [URI specification]: https://www.rabbitmq.com/uri-spec.html
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate batch_rabbitmq;
+    /// # extern crate tokio;
+    /// use batch_rabbitmq::Connection;
+    /// use tokio::prelude::Future;
+    ///
+    /// let fut = Connection::open("amqp://guest:guest@localhost:5672/%2f");
+    /// # if false {
+    /// tokio::run(
+    ///     fut.map(|_| ())
+    ///         .map_err(|e| eprintln!("An error occured: {}", e))
+    /// );
+    /// # }
+    /// ```
+    pub fn open(uri: &str) -> Connect {
         Builder::new(uri).connect()
     }
 }

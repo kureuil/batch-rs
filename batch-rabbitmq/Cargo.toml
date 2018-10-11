@@ -25,6 +25,9 @@ tokio-tcp = "0.1"
 tokio-tls = "0.1"
 uuid = "0.6"
 
+[dev-dependencies]
+tokio = "0.1"
+
 [features]
 default = ["codegen"]
 codegen = ["batch-rabbitmq-codegen"]

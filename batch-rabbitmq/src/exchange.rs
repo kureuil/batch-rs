@@ -4,10 +4,15 @@
 /// `Kind::Custom` variant.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Kind {
+    /// RabbitMQ's direct exchange type
     Direct,
+    /// RabbitMQ's fanout exchange type
     Fanout,
+    /// RabbitMQ's topic exchange type
     Topic,
+    /// RabbitMQ's headers exchange type
     Headers,
+    /// A custom exchange type
     Custom(String),
 }
 
@@ -31,6 +36,9 @@ impl AsRef<str> for Kind {
 }
 
 /// A builder for the `Exchange` type.
+///
+/// You should not have to construct values of this type yourself, and should instead let
+/// `batch_rabbitmq`'s procedural macros generate the necessary invocations.
 #[derive(Debug, Clone)]
 pub struct Builder {
     pub(crate) name: String,
@@ -72,6 +80,9 @@ impl Builder {
 }
 
 /// A RabbitMQ exchange.
+///
+/// You should not have to construct values of this type yourself, and should instead let
+/// `batch_rabbitmq`'s procedural macros generate the necessary invocations.
 #[derive(Debug, Clone)]
 pub struct Exchange {
     name: String,
