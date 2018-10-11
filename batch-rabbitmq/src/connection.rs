@@ -202,8 +202,7 @@ pub struct Connect(Box<dyn Future<Item = Connection, Error = Error> + Send>);
 
 impl fmt::Debug for Connect {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Connect")
-            .finish()
+        f.debug_struct("Connect").finish()
     }
 }
 

@@ -65,7 +65,7 @@ use proc_macro::TokenStream;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// #[job(name = "batch-example.say-hello", timeout = "5min 30sec", priority = low)]
 /// fn say_hello(name: String) {
 ///     println!("Hello {}", name);

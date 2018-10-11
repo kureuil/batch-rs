@@ -165,16 +165,40 @@ mod test {
 
     #[test]
     fn test_exchange_kind_as_ref_str() {
-        struct TestCase { kind: Kind, expected: &'static str }
+        struct TestCase {
+            kind: Kind,
+            expected: &'static str,
+        }
 
         let cases = vec![
-            TestCase { kind: Kind::Direct, expected: "direct" },
-            TestCase { kind: Kind::Fanout, expected: "fanout" },
-            TestCase { kind: Kind::Topic, expected: "topic" },
-            TestCase { kind: Kind::Headers, expected: "headers" },
-            TestCase { kind: Kind::Custom("".into()), expected: "" },
-            TestCase { kind: Kind::Custom("x-delay-exchange".into()), expected: "x-delay-exchange" },
-            TestCase { kind: Kind::Custom("direct".into()), expected: "direct" },
+            TestCase {
+                kind: Kind::Direct,
+                expected: "direct",
+            },
+            TestCase {
+                kind: Kind::Fanout,
+                expected: "fanout",
+            },
+            TestCase {
+                kind: Kind::Topic,
+                expected: "topic",
+            },
+            TestCase {
+                kind: Kind::Headers,
+                expected: "headers",
+            },
+            TestCase {
+                kind: Kind::Custom("".into()),
+                expected: "",
+            },
+            TestCase {
+                kind: Kind::Custom("x-delay-exchange".into()),
+                expected: "x-delay-exchange",
+            },
+            TestCase {
+                kind: Kind::Custom("direct".into()),
+                expected: "direct",
+            },
         ];
 
         for case in cases {
