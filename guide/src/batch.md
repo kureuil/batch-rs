@@ -7,6 +7,7 @@ Batch allows you to defer jobs to worker processes, by sending messages to a bro
 Batch doesn't tie you to a particular message broker implementation: a bunch of adapters are bundled in the library but you are free to write your own to accomodate your requirements. As of today batch provides adapters for the following message brokers:
 
 * [RabbitMQ]: [Go to the associated guide section](./rabbitmq/index.html)
+* Stub: [Go to the associated guide section](./batch.html)
 
 Examples are available on [GitHub][examples] or you can continue and read the Getting Started guide for the message broker of your choice.
 

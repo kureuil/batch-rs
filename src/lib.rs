@@ -9,6 +9,7 @@
 //! responsible for the development & maintenance of the following adapters:
 //!
 //! * [RabbitMQ](https://docs.rs/batch-rabbitmq/0.2)
+//! * [Stub](https://docs.rs/batch-stub/0.2)
 //!
 //! Batch provides a worker implementation with sensible defaults that supports parallelism and job timeouts out of
 //! the box, on all supported platforms.
