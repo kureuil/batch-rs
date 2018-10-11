@@ -83,7 +83,6 @@ impl<'u> Builder<'u> {
     where
         Q: batch::Queue + Declare,
     {
-        // TODO: declare queue's exchange
         Q::declare(&mut self);
         self
     }
@@ -115,9 +114,9 @@ impl<'u> Builder<'u> {
                     .create_channel()
                     .map_err(|e| e.into())
                     .map(|channel| {
-                        let consume_channel = channel.clone();
+                        let publish_channel = channel.clone();
                         let background = consumer.for_each(move |dispatch: Dispatch| {
-                            consume_channel
+                            publish_channel
                                 .basic_publish(
                                     dispatch.destination(),
                                     &dispatch.properties().task,
