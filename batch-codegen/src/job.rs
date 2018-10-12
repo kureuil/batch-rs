@@ -504,7 +504,7 @@ impl ToTokens for Job {
     }
 }
 
-pub fn impl_macro(
+pub(crate) fn impl_macro(
     args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {

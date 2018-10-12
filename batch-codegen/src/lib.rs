@@ -8,6 +8,7 @@
 //! [`job`]: fn.job.html
 
 #![recursion_limit = "256"]
+#![doc(html_root_url = "https://docs.rs/batch-codegen/0.2.0")]
 
 extern crate humantime;
 extern crate proc_macro;

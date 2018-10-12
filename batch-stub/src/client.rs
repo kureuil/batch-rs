@@ -27,12 +27,14 @@ mod sealed {
 
 use self::sealed::StubJob;
 
-/// A stub implentation of a batch `Client`.
+/// A stub implentation of [`batch::Client`].
 ///
-/// This client implementation is made to be used in tests, to check that
-/// your code is correctly enqueuing the correct number of jobs in the right
-/// queues. It is not meant to be used as a real `Client` implementation in
-/// a production app.
+/// This client implementation is made to be used in tests, to check that your code is correctly
+/// enqueuing the correct number of jobs in the right queues. It is not meant to be used as a real
+/// [`batch::Client`] implementation in a production app.
+///
+/// The `Consumer` returned by this client is completely useless and should not be used in tests
+/// now.
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<Mutex<Inner>>,
@@ -62,6 +64,15 @@ impl Client {
     }
 
     /// Count the number of jobs in the given queue.
+    ///
+    /// If the given queue is unknown the function returns 0.
+    ///
+    /// **Note:** the function takes a function returning a `Query` as parameter but you're not
+    /// supposed to write this function yourself, it should be provided by your Batch adapter.
+    ///
+    /// # Panics
+    ///
+    /// This function can panic if its inner [`Mutex`] has been poisonned and cannot be locked.
     pub fn count<Q>(&self, _ctor: impl Fn(StubJob) -> batch::Query<StubJob, Q>) -> usize
     where
         Q: batch::Queue,
