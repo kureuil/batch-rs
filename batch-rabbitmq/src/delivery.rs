@@ -8,6 +8,7 @@ use futures::sync::mpsc;
 use futures::{Future, Poll, Sink};
 use lapin::message;
 use lapin::types::AMQPValue;
+use log::warn;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,8 +103,17 @@ impl Delivery {
 							AMQPValue::Timestamp(ms) => Some(Duration::from_millis(*ms)),
 							_ => bail!("Incorrect type for second value of `timelimit` header from delivery"),
 						};
-                        // TODO: check that hardlimit if greater than or equal to the softlimit
-                        (softlimit, hardlimit)
+                        if hardlimit < softlimit {
+                            warn!(
+                                "hardlimit is less than softlimit, replacing with softlimit; id={} job={} delivery_tag={}",
+                                props.id,
+                                props.task,
+                                delivery_tag
+                            );
+                            (softlimit, softlimit)
+                        } else {
+                            (softlimit, hardlimit)
+                        }
                     }
                     _ => bail!("Invalid value for `timelimit` header from delivery"),
                 },
