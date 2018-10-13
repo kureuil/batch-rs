@@ -224,6 +224,7 @@ impl ToTokens for Queue {
             }
 
             #[doc(hidden)]
+            #[allow(non_snake_case)]
             pub fn #ident<J>(job: J) -> #export::Query<J, #ident>
             where
                 J: #export::Job
