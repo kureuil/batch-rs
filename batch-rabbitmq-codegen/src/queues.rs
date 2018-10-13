@@ -242,7 +242,7 @@ impl ToTokens for Queue {
 
                 impl #export::Queue for #ident {
                     const SOURCE: &'static str = #name;
-                    
+
                     const DESTINATION: &'static str = #exchange;
 
                     type CallbacksIterator = #export::Box<#export::Iterator<Item = (

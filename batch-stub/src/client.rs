@@ -165,14 +165,14 @@ mod tests {
     #[allow(non_snake_case)]
     fn MaintenanceQueue<J>(job: J) -> batch::Query<J, MaintenanceQueue>
     where
-        J: batch::Job
+        J: batch::Job,
     {
         batch::Query::new(job)
     }
 
     impl batch::Queue for MaintenanceQueue {
         const SOURCE: &'static str = "maintenance";
-        
+
         const DESTINATION: &'static str = "maintenance";
 
         type CallbacksIterator = std::vec::IntoIter<(
@@ -190,14 +190,14 @@ mod tests {
     #[allow(non_snake_case)]
     fn TranscodingQueue<J>(job: J) -> batch::Query<J, TranscodingQueue>
     where
-        J: batch::Job
+        J: batch::Job,
     {
         batch::Query::new(job)
     }
 
     impl batch::Queue for TranscodingQueue {
         const SOURCE: &'static str = "transcoding";
-        
+
         const DESTINATION: &'static str = "transcoding";
 
         type CallbacksIterator = std::vec::IntoIter<(
