@@ -123,15 +123,15 @@ impl Delivery {
 
 /// Future returned when acking a [`Delivery`] with [`batch::Delivery::ack`].
 #[must_use = "futures do nothing unless polled"]
-pub struct Acknowledge(Box<Future<Item = (), Error = Error> + Send>);
+pub struct AcknowledgeFuture(Box<Future<Item = (), Error = Error> + Send>);
 
-impl fmt::Debug for Acknowledge {
+impl fmt::Debug for AcknowledgeFuture {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Acknowledge").finish()
+        f.debug_struct("AcknowledgeFuture").finish()
     }
 }
 
-impl Future for Acknowledge {
+impl Future for AcknowledgeFuture {
     type Item = ();
 
     type Error = Error;
@@ -143,15 +143,15 @@ impl Future for Acknowledge {
 
 /// Future returned when rejecting a [`Delivery`] with [`batch::Delivery::reject`].
 #[must_use = "futures do nothing unless polled"]
-pub struct Reject(Box<Future<Item = (), Error = Error> + Send>);
+pub struct RejectFuture(Box<Future<Item = (), Error = Error> + Send>);
 
-impl fmt::Debug for Reject {
+impl fmt::Debug for RejectFuture {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Reject").finish()
+        f.debug_struct("RejectFuture").finish()
     }
 }
 
-impl Future for Reject {
+impl Future for RejectFuture {
     type Item = ();
 
     type Error = Error;
@@ -162,9 +162,9 @@ impl Future for Reject {
 }
 
 impl batch::Delivery for Delivery {
-    type AckFuture = Acknowledge;
+    type AckFuture = AcknowledgeFuture;
 
-    type RejectFuture = Reject;
+    type RejectFuture = RejectFuture;
 
     fn payload(&self) -> &[u8] {
         &self.payload
@@ -180,7 +180,7 @@ impl batch::Delivery for Delivery {
             .send(Completion::Acknowledge(self.delivery_tag))
             .map(|_| ())
             .map_err(Error::from);
-        Acknowledge(Box::new(task))
+        AcknowledgeFuture(Box::new(task))
     }
 
     fn reject(self) -> Self::RejectFuture {
@@ -189,6 +189,6 @@ impl batch::Delivery for Delivery {
             .send(Completion::Reject(self.delivery_tag))
             .map(|_| ())
             .map_err(Error::from);
-        Reject(Box::new(task))
+        RejectFuture(Box::new(task))
     }
 }

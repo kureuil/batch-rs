@@ -40,8 +40,8 @@ mod stream;
 
 #[cfg(feature = "codegen")]
 pub use batch_rabbitmq_codegen::queues;
-pub use connection::{Builder as ConnectionBuilder, Connect, Connection};
+pub use connection::{Builder as ConnectionBuilder, ConnectFuture, Connection, SendFuture};
 pub use declare::Declare;
-pub use delivery::{Acknowledge, Delivery, Reject};
+pub use delivery::{AcknowledgeFuture, Delivery, RejectFuture};
 pub use exchange::{Builder as ExchangeBuilder, Exchange, Kind as ExchangeKind};
 pub use queue::{Builder as QueueBuilder, Queue};

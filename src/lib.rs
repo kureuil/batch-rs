@@ -91,6 +91,6 @@ pub use delivery::Delivery;
 pub use dispatch::Dispatch;
 pub use factory::Factory;
 pub use job::{Job, Properties};
-pub use query::{Query, SendDispatch};
+pub use query::{DispatchFuture, Query};
 pub use queue::Queue;
 pub use worker::{Work, Worker};

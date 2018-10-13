@@ -140,7 +140,7 @@ impl<'u> Builder<'u> {
     /// );
     /// # }
     /// ```
-    pub fn connect(self) -> Connect {
+    pub fn connect(self) -> ConnectFuture {
         let queues = self.queues;
         let fut = AMQPUri::from_str(self.uri)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e).into())
@@ -192,21 +192,21 @@ impl<'u> Builder<'u> {
                         }
                     })
             });
-        Connect(Box::new(fut))
+        ConnectFuture(Box::new(fut))
     }
 }
 
 /// The future returned by [`Builder::connect`].
 #[must_use = "futures do nothing unless polled"]
-pub struct Connect(Box<dyn Future<Item = Connection, Error = Error> + Send>);
+pub struct ConnectFuture(Box<dyn Future<Item = Connection, Error = Error> + Send>);
 
-impl fmt::Debug for Connect {
+impl fmt::Debug for ConnectFuture {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Connect").finish()
+        f.debug_struct("ConnectFuture").finish()
     }
 }
 
-impl Future for Connect {
+impl Future for ConnectFuture {
     type Item = Connection;
 
     type Error = Error;
@@ -281,7 +281,7 @@ impl Connection {
     /// );
     /// # }
     /// ```
-    pub fn open(uri: &str) -> Connect {
+    pub fn open(uri: &str) -> ConnectFuture {
         Builder::new(uri).connect()
     }
 }

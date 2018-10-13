@@ -125,13 +125,13 @@ where
     /// tokio::spawn(f);
     /// # }
     /// ```
-    pub fn dispatch<C>(self, client: &mut C) -> SendDispatch<C, J>
+    pub fn dispatch<C>(self, client: &mut C) -> DispatchFuture<C, J>
     where
         C: Client,
     {
         debug!("dispatch; job={} queue={}", J::NAME, Q::DESTINATION);
         let client = client.clone();
-        SendDispatch {
+        DispatchFuture {
             client,
             state: DispatchState::Raw(Q::DESTINATION, Some(self.job), Some(self.properties)),
         }
@@ -141,7 +141,7 @@ where
 /// The future returned when a message is dispatched to a message broker.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub struct SendDispatch<C, J>
+pub struct DispatchFuture<C, J>
 where
     C: Client,
 {
@@ -155,7 +155,7 @@ enum DispatchState<J, F> {
     Polling(F),
 }
 
-impl<C, J> Future for SendDispatch<C, J>
+impl<C, J> Future for DispatchFuture<C, J>
 where
     C: Client,
     J: Job,
