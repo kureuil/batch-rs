@@ -43,7 +43,9 @@ where
     /// # struct ExampleQueue;
     /// #
     /// # impl Queue for ExampleQueue {
-    /// #     const NAME: &'static str = "example-queue";
+    /// #     const SOURCE: &'static str = "example-queue";
+    /// #
+    /// #     const DESTINATION: &'static str = "example-queue";
     /// #
     /// #     type CallbacksIterator = Box<Iterator<
     /// #         Item = (
@@ -91,7 +93,9 @@ where
     /// # struct ExampleQueue;
     /// #
     /// # impl Queue for ExampleQueue {
-    /// #     const NAME: &'static str = "example-queue";
+    /// #     const SOURCE: &'static str = "example-queue";
+    /// #
+    /// #     const DESTINATION: &'static str = "example-queue";
     /// #
     /// #     type CallbacksIterator = Box<Iterator<
     /// #         Item = (

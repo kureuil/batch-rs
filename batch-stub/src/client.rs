@@ -249,6 +249,6 @@ mod tests {
     #[should_panic]
     fn test_creating_a_consumer_should_panic() {
         let mut client = Client::new();
-        let fut = client.to_consumer(vec![MaintenanceQueue::NAME, TranscodingQueue::NAME]);
+        let _ = client.to_consumer(vec![MaintenanceQueue::SOURCE, TranscodingQueue::SOURCE]);
     }
 }
