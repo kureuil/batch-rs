@@ -1,7 +1,7 @@
 use amq_protocol::uri::AMQPUri;
 use batch::{self, Dispatch};
 use failure::Error;
-use futures::sync::mpsc::{channel, Sender};
+use futures::sync::mpsc;
 use futures::{future, sink, Async, Future, IntoFuture, Poll, Sink, Stream};
 use lapin::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
@@ -142,6 +142,7 @@ impl<'u> Builder<'u> {
     /// ```
     pub fn connect(self) -> ConnectFuture {
         let queues = self.queues;
+        let queues2 = queues.clone();
         let fut = AMQPUri::from_str(self.uri)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e).into())
             .into_future()
@@ -162,35 +163,51 @@ impl<'u> Builder<'u> {
                 spawn(heartbeat.map_err(|e| {
                     error!("Couldn't send heartbeat to RabbitMQ: {}", e);
                 }));
-                let (publisher, consumer) = channel(1024);
                 client
                     .create_channel()
-                    .map_err(|e| e.into())
-                    .map(|channel| {
-                        let publish_channel = channel.clone();
-                        let background = consumer.for_each(move |dispatch: Dispatch| {
-                            publish_channel
-                                .basic_publish(
-                                    dispatch.destination(),
-                                    &dispatch.properties().task,
-                                    dispatch.payload().to_vec(),
-                                    BasicPublishOptions::default(),
-                                    amqp_properties(dispatch.properties()),
-                                ).map(|_| ())
-                                .map_err(|e| error!("Couldn't publish message to channel: {}", e))
-                        });
-                        spawn(background);
-                        let inner = Inner {
-                            _channel: channel,
-                            _handle: handle,
-                            client,
-                            publisher,
-                            queues,
-                        };
-                        Connection {
-                            inner: Arc::new(inner),
-                        }
-                    })
+                    .map(|channel| (client, channel, handle))
+                    .map_err(Error::from)
+            }).and_then(move |(client, channel, handle)| {
+                let channel2 = channel.clone();
+                let tasks: Vec<_> = queues2
+                    .into_iter()
+                    .map(move |(_, queue)| {
+                        let task = channel2
+                            .exchange_declare(
+                                queue.exchange().name(),
+                                queue.exchange().kind().as_ref(),
+                                ExchangeDeclareOptions::default(),
+                                FieldTable::new(),
+                            ).map(|_| ())
+                            .map_err(Error::from);
+                        Box::new(task) as Box<Future<Item = (), Error = Error> + Send>
+                    }).collect();
+                future::join_all(tasks).map(move |_| (client, channel, handle))
+            }).map(move |(client, channel, handle)| {
+                let (publisher, consumer) = mpsc::channel(1024);
+                let publish_channel = channel.clone();
+                let background = consumer.for_each(move |dispatch: Dispatch| {
+                    publish_channel
+                        .basic_publish(
+                            dispatch.destination(),
+                            &dispatch.properties().task,
+                            dispatch.payload().to_vec(),
+                            BasicPublishOptions::default(),
+                            amqp_properties(dispatch.properties()),
+                        ).map(|_| ())
+                        .map_err(|e| error!("Couldn't publish message to channel: {}", e))
+                });
+                spawn(background);
+                let inner = Inner {
+                    _channel: channel,
+                    _handle: handle,
+                    client,
+                    publisher,
+                    queues,
+                };
+                Connection {
+                    inner: Arc::new(inner),
+                }
             });
         ConnectFuture(Box::new(fut))
     }
@@ -229,7 +246,7 @@ pub struct Connection {
 
 struct Inner {
     client: Client<stream::Stream>,
-    publisher: Sender<Dispatch>,
+    publisher: mpsc::Sender<Dispatch>,
     queues: BTreeMap<String, queue::Queue>,
     _channel: Channel<stream::Stream>,
     _handle: HeartbeatHandle,
@@ -406,7 +423,7 @@ impl batch::Client for Connection {
 
 /// The future returned when sending a dispatch to the broker.
 #[derive(Debug)]
-pub struct SendFuture(sink::Send<Sender<Dispatch>>);
+pub struct SendFuture(sink::Send<mpsc::Sender<Dispatch>>);
 
 impl Future for SendFuture {
     type Item = ();
