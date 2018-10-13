@@ -1,5 +1,6 @@
 use failure::Error;
 use futures::{Async, Future, Poll};
+use log::debug;
 use std::marker::PhantomData;
 
 use dispatch::Dispatch;
@@ -128,10 +129,11 @@ where
     where
         C: Client,
     {
+        debug!("dispatch; job={} queue={}", J::NAME, Q::DESTINATION);
         let client = client.clone();
         SendDispatch {
             client,
-            state: DispatchState::Raw(Q::NAME, Some(self.job), Some(self.properties)),
+            state: DispatchState::Raw(Q::DESTINATION, Some(self.job), Some(self.properties)),
         }
     }
 }
@@ -163,6 +165,8 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // FIXME: Refactor once NLL lands on stable, the weird dance to replace self.state
+        //        shouldn't be needed anymore.
         let state = match self.state {
             DispatchState::Raw(destination, ref mut job, ref mut props) => {
                 let dispatch = Dispatch::new(

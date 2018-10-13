@@ -126,7 +126,7 @@ where
     where
         Q: Queue,
     {
-        self.queues.insert(Q::NAME.into());
+        self.queues.insert(Q::SOURCE.into());
         for (job, callback) in Q::callbacks() {
             if let Some(previous) = self.callbacks.insert(job.into(), callback) {
                 if previous as fn(_, _) -> _ != callback as fn(_, _) -> _ {

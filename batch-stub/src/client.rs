@@ -80,7 +80,7 @@ impl Client {
         let inner = self.inner.lock().unwrap();
         inner
             .dispatches
-            .get(Q::NAME.into())
+            .get(Q::DESTINATION.into())
             .map(|v| v.len())
             .unwrap_or(0)
     }
@@ -171,7 +171,9 @@ mod tests {
     }
 
     impl batch::Queue for MaintenanceQueue {
-        const NAME: &'static str = "maintenance";
+        const SOURCE: &'static str = "maintenance";
+        
+        const DESTINATION: &'static str = "maintenance";
 
         type CallbacksIterator = std::vec::IntoIter<(
             &'static str,
@@ -194,7 +196,9 @@ mod tests {
     }
 
     impl batch::Queue for TranscodingQueue {
-        const NAME: &'static str = "transcoding";
+        const SOURCE: &'static str = "transcoding";
+        
+        const DESTINATION: &'static str = "transcoding";
 
         type CallbacksIterator = std::vec::IntoIter<(
             &'static str,

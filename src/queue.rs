@@ -9,8 +9,11 @@ use Factory;
 ///
 /// This trait is meant to be implemented by adapters to message brokers.
 pub trait Queue: Sized {
-    /// The name of this queue.
-    const NAME: &'static str;
+    /// The key used when publishing a job to this queue.
+    const SOURCE: &'static str;
+
+    /// The key used when consuming jobs from this queue.
+    const DESTINATION: &'static str;
 
     /// The return type of the `callbacks` method.
     type CallbacksIterator: Iterator<
