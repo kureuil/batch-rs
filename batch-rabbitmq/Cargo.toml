@@ -26,6 +26,7 @@ tokio-tls = "0.1"
 uuid = "0.6"
 
 [dev-dependencies]
+env_logger = "0.5"
 tokio = "0.1"
 
 [features]
