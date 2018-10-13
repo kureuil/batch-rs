@@ -150,3 +150,101 @@ impl batch::Client for Client {
         unimplemented!();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use batch::{Client as BatchClient, Queue};
+    use futures::Future;
+    use serde::{Deserialize, Serialize};
+    use std::vec;
+
+    struct MaintenanceQueue {}
+
+    #[allow(non_snake_case)]
+    fn MaintenanceQueue<J>(job: J) -> batch::Query<J, MaintenanceQueue>
+    where
+        J: batch::Job
+    {
+        batch::Query::new(job)
+    }
+
+    impl batch::Queue for MaintenanceQueue {
+        const NAME: &'static str = "maintenance";
+
+        type CallbacksIterator = std::vec::IntoIter<(
+            &'static str,
+            fn(&[u8], &batch::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
+        )>;
+
+        fn callbacks() -> Self::CallbacksIterator {
+            vec![].into_iter()
+        }
+    }
+
+    struct TranscodingQueue {}
+
+    #[allow(non_snake_case)]
+    fn TranscodingQueue<J>(job: J) -> batch::Query<J, TranscodingQueue>
+    where
+        J: batch::Job
+    {
+        batch::Query::new(job)
+    }
+
+    impl batch::Queue for TranscodingQueue {
+        const NAME: &'static str = "transcoding";
+
+        type CallbacksIterator = std::vec::IntoIter<(
+            &'static str,
+            fn(&[u8], &batch::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
+        )>;
+
+        fn callbacks() -> Self::CallbacksIterator {
+            vec![].into_iter()
+        }
+    }
+
+    #[derive(Deserialize, Serialize)]
+    struct ConvertVideoFile {}
+
+    impl batch::Job for ConvertVideoFile {
+        const NAME: &'static str = "convert-video-file";
+
+        type PerformFuture = future::FutureResult<(), Error>;
+
+        fn perform(self, _ctx: &batch::Factory) -> Self::PerformFuture {
+            future::ok(())
+        }
+    }
+
+    #[test]
+    fn test_client_count_published_jobs_correctly() {
+        let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
+        let mut client = Client::new();
+        assert_eq!(client.count(MaintenanceQueue), 0);
+        assert_eq!(client.count(TranscodingQueue), 0);
+        {
+            let job = ConvertVideoFile {};
+            let fut = MaintenanceQueue(job).dispatch(&mut client);
+            let _ = runtime.block_on(fut).unwrap();
+            assert_eq!(client.count(MaintenanceQueue), 1);
+            assert_eq!(client.count(TranscodingQueue), 0);
+        }
+        {
+            let job = ConvertVideoFile {};
+            let fut = TranscodingQueue(job).dispatch(&mut client);
+            let _ = runtime.block_on(fut).unwrap();
+            assert_eq!(client.count(MaintenanceQueue), 1);
+            assert_eq!(client.count(TranscodingQueue), 1);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_creating_a_consumer_should_panic() {
+        let mut client = Client::new();
+        let fut = client.to_consumer(vec![MaintenanceQueue::NAME, TranscodingQueue::NAME]);
+    }
+}

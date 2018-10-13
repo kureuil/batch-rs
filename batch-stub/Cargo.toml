@@ -11,3 +11,7 @@ batch = { version = "0.2", path = "../" }
 failure = "0.1"
 futures = "0.1"
 serde = "1.0"
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = "0.1"
