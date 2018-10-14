@@ -54,14 +54,18 @@ fn consume_from_basic_queue() {
         let job = convert_video_file("./westworld-2x06.mkv".into());
         let f = Transcoding(job).dispatch(&mut conn);
         let _ = runtime.block_on(f).unwrap();
-        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
+        let _ = runtime
+            .block_on(Delay::new(Instant::now() + Duration::from_secs(1)))
+            .unwrap();
     }
     info!("Published first message");
     {
         let job = say_hello("Ferris".into());
         let f = Transcoding(job).dispatch(&mut conn);
         let _ = runtime.block_on(f).unwrap();
-        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
+        let _ = runtime
+            .block_on(Delay::new(Instant::now() + Duration::from_secs(1)))
+            .unwrap();
     }
     info!("Published second message");
     info!("Published all messages");
@@ -75,7 +79,9 @@ fn consume_from_basic_queue() {
         let delivery = delivery.unwrap();
         assert_eq!(delivery.properties().task, job);
         let _ = runtime.block_on(delivery.ack()).unwrap();
-        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
+        let _ = runtime
+            .block_on(Delay::new(Instant::now() + Duration::from_secs(1)))
+            .unwrap();
         consumer = next.into_future();
     }
     {
