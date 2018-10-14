@@ -4,6 +4,8 @@ members = [
 	"batch-codegen",
 	"batch-rabbitmq",
 	"batch-rabbitmq-codegen",
+	"batch-stub",
+	"batch-test",
 	"examples/rabbitmq-simple",
 	"examples/rabbitmq-warp",
 ]
