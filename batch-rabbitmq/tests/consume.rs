@@ -35,6 +35,7 @@ fn consume_from_basic_queue() {
     use std::collections::VecDeque;
     use std::time::{Duration, Instant};
     use tokio::prelude::*;
+    use tokio::timer::Delay;
 
     let _ = ::env_logger::try_init();
     let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
@@ -53,12 +54,14 @@ fn consume_from_basic_queue() {
         let job = convert_video_file("./westworld-2x06.mkv".into());
         let f = Transcoding(job).dispatch(&mut conn);
         let _ = runtime.block_on(f).unwrap();
+        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
     }
     info!("Published first message");
     {
         let job = say_hello("Ferris".into());
         let f = Transcoding(job).dispatch(&mut conn);
         let _ = runtime.block_on(f).unwrap();
+        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
     }
     info!("Published second message");
     info!("Published all messages");
@@ -72,13 +75,14 @@ fn consume_from_basic_queue() {
         let delivery = delivery.unwrap();
         assert_eq!(delivery.properties().task, job);
         let _ = runtime.block_on(delivery.ack()).unwrap();
+        let _ = runtime.block_on(Delay::new(Instant::now() + Duration::from_secs(1))).unwrap();
         consumer = next.into_future();
     }
     {
-        // The runtime needs to run a few more seconds because of the ack future returning early.
-        let now = Instant::now();
-        let delta = Duration::from_secs(2);
-        let delay = tokio::timer::Delay::new(now + delta);
-        let _ = runtime.block_on(delay).unwrap();
+        info!("Dropping RabbitMQ connection in order to stop background task");
+        drop(conn);
     }
+    // FIXME: we're not checking whether deliveries have been ack'ed correctly.
+    //        Calling basic.get on tests-consume.transcoding using lapin should be enough.
+    runtime.run().unwrap();
 }
