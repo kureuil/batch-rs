@@ -185,19 +185,31 @@ impl batch::Delivery for Delivery {
     }
 
     fn ack(self) -> Self::AckFuture {
+        let id = self.properties.id;
+        let task = self.properties.task.clone();
+        let delivery_tag = self.delivery_tag;
+        debug!("ack; id={} job={:?} delivery_tag={:?}", id, task, delivery_tag);
         let task = self
             .channel
             .send(Completion::Acknowledge(self.delivery_tag))
-            .map(|_| ())
+            .map(move |_| {
+                debug!("acking; id={} job={:?} delivery_tag={:?}", id, task, delivery_tag);
+            })
             .map_err(Error::from);
         AcknowledgeFuture(Box::new(task))
     }
 
     fn reject(self) -> Self::RejectFuture {
+        let id = self.properties.id;
+        let task = self.properties.task.clone();
+        let delivery_tag = self.delivery_tag;
+        debug!("reject; id={} job={:?} delivery_tag={:?}", id, task, delivery_tag);
         let task = self
             .channel
             .send(Completion::Reject(self.delivery_tag))
-            .map(|_| ())
+            .map(move |_| {
+                debug!("rejecting; id={} job={:?} delivery_tag={:?}", id, task, delivery_tag);
+            })
             .map_err(Error::from);
         RejectFuture(Box::new(task))
     }
