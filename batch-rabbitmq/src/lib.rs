@@ -13,6 +13,7 @@ extern crate bytes;
 extern crate failure;
 #[macro_use]
 extern crate futures;
+extern crate lapin_async;
 extern crate lapin_futures as lapin;
 #[macro_use]
 extern crate log;

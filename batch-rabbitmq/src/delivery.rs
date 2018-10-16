@@ -1,21 +1,16 @@
-use std::collections::BTreeMap;
-use std::fmt;
-use std::time::Duration;
-
 use batch;
 use failure::Error;
-use futures::sync::mpsc;
-use futures::{Future, Poll, Sink};
+use futures::{Future, Poll};
+use lapin::channel;
 use lapin::message;
 use lapin::types::AMQPValue;
 use log::warn;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::time::Duration;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Completion {
-    Acknowledge(u64),
-    Reject(u64),
-}
+use stream;
 
 /// A delivery is a message received from RabbitMQ.
 ///
@@ -23,18 +18,27 @@ pub(crate) enum Completion {
 /// status of the associated job. If RabbitMQ doesn't get a response once the Time To Live of
 /// the delivery has expired, the delivery is marked as rejected and set to be retried. You can do
 /// so using the methods provided by the [`batch::Delivery`] trait.
-#[derive(Debug)]
 pub struct Delivery {
     payload: Vec<u8>,
     delivery_tag: u64,
     properties: batch::Properties,
-    channel: mpsc::Sender<Completion>,
+    channel: channel::Channel<stream::Stream>,
+}
+
+impl fmt::Debug for Delivery {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Delivery")
+            .field("payload", &self.payload)
+            .field("delivery_tag", &self.delivery_tag)
+            .field("properties", &self.properties)
+            .finish()
+    }
 }
 
 impl Delivery {
     pub(crate) fn new(
         delivery: message::Delivery,
-        channel: mpsc::Sender<Completion>,
+        channel: channel::Channel<stream::Stream>,
     ) -> Result<Self, Error> {
         let payload = delivery.data;
         let delivery_tag = delivery.delivery_tag;
@@ -185,42 +189,22 @@ impl batch::Delivery for Delivery {
     }
 
     fn ack(self) -> Self::AckFuture {
-        let id = self.properties.id;
-        let task = self.properties.task.clone();
+        let id = self.properties().id;
+        let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!(
-            "ack; id={} job={:?} delivery_tag={:?}",
-            id, task, delivery_tag
-        );
-        let task = self
-            .channel
-            .send(Completion::Acknowledge(self.delivery_tag))
-            .map(move |_| {
-                debug!(
-                    "acking; id={} job={:?} delivery_tag={:?}",
-                    id, task, delivery_tag
-                );
-            }).map_err(Error::from);
+        debug!("ack; id={} job={:?} delivery_tag={:?}", id, job, delivery_tag);
+        let task = self.channel.basic_ack(self.delivery_tag, false)
+            .map_err(Error::from);
         AcknowledgeFuture(Box::new(task))
     }
 
     fn reject(self) -> Self::RejectFuture {
-        let id = self.properties.id;
-        let task = self.properties.task.clone();
+        let id = self.properties().id;
+        let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!(
-            "reject; id={} job={:?} delivery_tag={:?}",
-            id, task, delivery_tag
-        );
-        let task = self
-            .channel
-            .send(Completion::Reject(self.delivery_tag))
-            .map(move |_| {
-                debug!(
-                    "rejecting; id={} job={:?} delivery_tag={:?}",
-                    id, task, delivery_tag
-                );
-            }).map_err(Error::from);
+        debug!("reject; id={} job={:?} delivery_tag={:?}", id, job, delivery_tag);
+        let task = self.channel.basic_reject(self.delivery_tag, false)
+            .map_err(Error::from);
         RejectFuture(Box::new(task))
     }
 }

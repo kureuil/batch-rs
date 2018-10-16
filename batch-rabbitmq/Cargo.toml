@@ -13,6 +13,7 @@ batch-rabbitmq-codegen = { version = "0.2", path = "../batch-rabbitmq-codegen", 
 bytes = "0.4"
 failure = "0.1"
 futures = "0.1"
+lapin-async = "0.13"
 lapin-futures = "0.13"
 log = "0.4"
 native-tls = "0.1"

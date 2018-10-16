@@ -1,8 +1,8 @@
 use amq_protocol::uri::AMQPUri;
 use batch::{self, Dispatch};
 use failure::Error;
-use futures::sync::mpsc;
-use futures::{future, sink, Async, Future, IntoFuture, Poll, Sink, Stream};
+use futures::sync::{mpsc, oneshot};
+use futures::{future, task, Async, Future, IntoFuture, Poll, Sink, Stream};
 use lapin::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
     QueueBindOptions, QueueDeclareOptions,
@@ -12,6 +12,7 @@ use lapin::consumer;
 use lapin::message;
 use lapin::queue::Queue;
 use lapin::types::{AMQPValue, FieldTable};
+use lapin_async::api::RequestId;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::io;
@@ -185,22 +186,15 @@ impl<'u> Builder<'u> {
                 future::join_all(tasks).map(move |_| (client, channel, handle))
             }).map(move |(client, channel, handle)| {
                 let (publisher, consumer) = mpsc::channel(1024);
-                let publish_channel = channel.clone();
-                let background = consumer.for_each(move |dispatch: Dispatch| {
-                    publish_channel
-                        .basic_publish(
-                            dispatch.destination(),
-                            &dispatch.properties().task,
-                            dispatch.payload().to_vec(),
-                            BasicPublishOptions::default(),
-                            amqp_properties(dispatch.properties()),
-                        ).map(|_| ())
-                        .map_err(|e| error!("Couldn't publish message to channel: {}", e))
-                });
-                spawn(background);
+                let (publish_task, publish_handle) = Publisher::new(channel.clone(), consumer);
+                spawn(
+                    publish_task
+                        .map_err(|e| error!("An error occured while processing dispatches: {}", e)),
+                );
                 let inner = Inner {
                     _channel: channel,
                     _handle: handle,
+                    _publish_handle: publish_handle,
                     client,
                     publisher,
                     queues,
@@ -246,10 +240,11 @@ pub struct Connection {
 
 struct Inner {
     client: Client<stream::Stream>,
-    publisher: mpsc::Sender<Dispatch>,
+    publisher: mpsc::Sender<(Dispatch, oneshot::Sender<Result<(), Error>>)>,
     queues: BTreeMap<String, queue::Queue>,
     _channel: Channel<stream::Stream>,
     _handle: HeartbeatHandle,
+    _publish_handle: PublisherHandle,
 }
 
 impl fmt::Debug for Connection {
@@ -307,7 +302,15 @@ impl batch::Client for Connection {
     type SendFuture = SendFuture;
 
     fn send(&mut self, dispatch: batch::Dispatch) -> Self::SendFuture {
-        SendFuture(self.inner.publisher.clone().send(dispatch))
+        let (tx, rx) = oneshot::channel();
+        let inner = self
+            .inner
+            .publisher
+            .clone()
+            .send((dispatch, tx))
+            .map_err(Error::from)
+            .and_then(|_| rx.map_err(Error::from).and_then(|result| result));
+        SendFuture(Box::new(inner))
     }
 
     type Consumer = Consumer;
@@ -422,8 +425,13 @@ impl batch::Client for Connection {
 }
 
 /// The future returned when sending a dispatch to the broker.
-#[derive(Debug)]
-pub struct SendFuture(sink::Send<mpsc::Sender<Dispatch>>);
+pub struct SendFuture(Box<dyn Future<Item = (), Error = Error> + Send>);
+
+impl fmt::Debug for SendFuture {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SendFuture").finish()
+    }
+}
 
 impl Future for SendFuture {
     type Item = ();
@@ -434,11 +442,14 @@ impl Future for SendFuture {
         match self.0.poll() {
             Ok(Async::Ready(_)) => Ok(Async::Ready(())),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(Error::from(e)),
+            Err(e) => Err(e),
         }
     }
 }
 
+/// A handle for the heartbeat task of our RabbitMQ connection.
+///
+/// It makes the heartbeat stops once it is dropped.
 struct HeartbeatHandle(Option<client::HeartbeatHandle>);
 
 impl fmt::Debug for HeartbeatHandle {
@@ -455,5 +466,88 @@ impl Drop for HeartbeatHandle {
         } else {
             warn!("Couldn't acquire heartbeat handle");
         }
+    }
+}
+
+/// The background task responsible for sending dispatches to RabbitMQ
+#[must_use = "futures do nothing unless polled"]
+struct Publisher {
+    shutdown: oneshot::Receiver<()>,
+    source: mpsc::Receiver<(Dispatch, oneshot::Sender<Result<(), Error>>)>,
+    channel: Channel<stream::Stream>,
+    task: Option<Box<dyn Future<Item = Option<RequestId>, Error = io::Error> + Send>>,
+    response: Option<oneshot::Sender<Result<(), Error>>>,
+}
+
+/// A handle to the publisher task.
+struct PublisherHandle(oneshot::Sender<()>);
+
+impl Publisher {
+    pub(crate) fn new(
+        channel: Channel<stream::Stream>,
+        source: mpsc::Receiver<(Dispatch, oneshot::Sender<Result<(), Error>>)>,
+    ) -> (Self, PublisherHandle) {
+        let (tx, rx) = oneshot::channel();
+        let publisher = Publisher {
+            channel,
+            source,
+            shutdown: rx,
+            task: None,
+            response: None,
+        };
+        let handle = PublisherHandle(tx);
+        (publisher, handle)
+    }
+}
+
+impl fmt::Debug for Publisher {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Publisher").finish()
+    }
+}
+
+impl Future for Publisher {
+    type Item = ();
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.shutdown.poll() {
+            Ok(Async::NotReady) => (),
+            Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
+            Err(_) => bail!("publisher shutdown error"),
+        };
+        if self.task.is_some() {
+            match self.task.poll() {
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(_)) => {
+                    self.task = None;
+                    let response = self.response.take().unwrap();
+                    response.send(Ok(())).unwrap();
+                }
+                Err(e) => {
+                    self.task = None;
+                    let response = self.response.take().unwrap();
+                    response.send(Err(Error::from(e))).unwrap();
+                }
+            }
+        }
+        let (dispatch, response) = match self.source.poll() {
+            Ok(Async::Ready(Some(t))) => t,
+            Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Err(_) => unreachable!(),
+        };
+        let publish_task = self.channel.basic_publish(
+            dispatch.destination(),
+            &dispatch.properties().task,
+            dispatch.payload().to_vec(),
+            BasicPublishOptions::default(),
+            amqp_properties(dispatch.properties()),
+        );
+        self.task = Some(Box::new(publish_task));
+        self.response = Some(response);
+        task::current().notify();
+        Ok(Async::NotReady)
     }
 }
