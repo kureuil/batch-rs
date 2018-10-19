@@ -35,11 +35,12 @@ use self::sealed::StubJob;
 ///
 /// The `Consumer` returned by this client is completely useless and should not be used in tests
 /// now.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Client {
     inner: Arc<Mutex<Inner>>,
 }
 
+#[derive(Debug)]
 struct Inner {
     dispatches: HashMap<String, Vec<batch::Dispatch>>,
 }
@@ -86,6 +87,7 @@ impl Client {
     }
 }
 
+#[derive(Debug)]
 pub struct Delivery;
 
 impl batch::Delivery for Delivery {
@@ -110,6 +112,7 @@ impl batch::Delivery for Delivery {
     }
 }
 
+#[derive(Debug)]
 pub struct Consumer;
 
 impl futures::Stream for Consumer {

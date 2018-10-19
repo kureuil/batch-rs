@@ -2,6 +2,7 @@
 
 #![recursion_limit = "256"]
 #![doc(html_root_url = "https://docs.rs/batch-rabbitmq-codegen/0.2.0")]
+#![deny(missing_debug_implementations)]
 
 extern crate proc_macro;
 extern crate proc_macro2;

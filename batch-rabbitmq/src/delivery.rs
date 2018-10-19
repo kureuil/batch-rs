@@ -192,8 +192,13 @@ impl batch::Delivery for Delivery {
         let id = self.properties().id;
         let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!("ack; id={} job={:?} delivery_tag={:?}", id, job, delivery_tag);
-        let task = self.channel.basic_ack(self.delivery_tag, false)
+        debug!(
+            "ack; id={} job={:?} delivery_tag={:?}",
+            id, job, delivery_tag
+        );
+        let task = self
+            .channel
+            .basic_ack(self.delivery_tag, false)
             .map_err(Error::from);
         AcknowledgeFuture(Box::new(task))
     }
@@ -202,8 +207,13 @@ impl batch::Delivery for Delivery {
         let id = self.properties().id;
         let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!("reject; id={} job={:?} delivery_tag={:?}", id, job, delivery_tag);
-        let task = self.channel.basic_reject(self.delivery_tag, false)
+        debug!(
+            "reject; id={} job={:?} delivery_tag={:?}",
+            id, job, delivery_tag
+        );
+        let task = self
+            .channel
+            .basic_reject(self.delivery_tag, false)
             .map_err(Error::from);
         RejectFuture(Box::new(task))
     }
