@@ -1,8 +1,10 @@
 # Summary
 
 [Batch](./batch.md)
-- [Installation](./installation.md)
-- [Getting Started](./getting-started.md)
+- [Concepts](./concepts.md)
 - [Jobs](./jobs.md)
-- [Queries](./queries.md)
-- [Worker](./worker.md)
+- [RabbitMQ](./rabbitmq/index.md)
+	- [Getting Started](./rabbitmq/getting-started.md)
+	- [Exchanges](./rabbitmq/exchanges.md)
+	- [Queues](./rabbitmq/queues.md)
+- [Worker](./worker/index.md)

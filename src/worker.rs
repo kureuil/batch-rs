@@ -1,515 +1,294 @@
 //! Batch Worker.
-//!
-//! The worker is responsible for polling the broker for jobs, deserializing them and execute
-//! them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
-//! `Broker` implementation is completely customizable by the user.
-//!
-//! # Trade-offs
-//!
-//! The most important thing to know about the worker is that it favours safety over performance.
-//! For each incoming job, it will spawn a new process whose only goal is to perform the job.
-//! Even if this is slower than just executing the function in a threadpool, it allows much more
-//! control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
-//! protects against unpredictable crashes
 
-use std::collections::HashMap;
+use failure::{self, Error};
+use futures::{self, future, Future, Poll, Stream};
+use log::{debug, error, warn};
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt;
-use std::io;
+use std::io::{self, Read};
 use std::process;
-use std::result::Result as StdResult;
-use std::sync::Arc;
-use std::time::Duration;
-
-use futures::{future, Future, IntoFuture, Stream};
-use lapin::channel::{BasicProperties, BasicPublishOptions};
-use num_cpus;
+use std::result::Result;
+use std::sync::mpsc;
 use tokio_executor;
-use tokio_reactor::Handle;
 use wait_timeout::ChildExt;
 
-use de;
-use error::{self, Result};
-use job::{Failure as JobFailure, Job, Perform, Status as JobStatus};
-use rabbitmq::{self, Exchange, ExchangeBuilder, Queue, QueueBuilder};
-use ser;
+use {Client, Delivery, Factory, Query, Queue};
 
-/// Type of job handlers stored in `Worker`.
-type WorkerFn<Ctx> = Fn(&[u8], Ctx) -> Result<()>;
+mod sealed {
+    use failure::Error;
+    use futures::future;
+    use serde::{Deserialize, Serialize};
+    use {Factory, Job};
 
-/// A builder to ease the construction of `Worker` instances.
+    /// Stub job used to trick the type system in `Connection::declare`.
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct StubJob;
+
+    impl Job for StubJob {
+        const NAME: &'static str = "";
+
+        type PerformFuture = future::FutureResult<(), Error>;
+
+        fn perform(self, _ctx: &Factory) -> Self::PerformFuture {
+            future::ok(())
+        }
+    }
+}
+
+use self::sealed::StubJob;
+
+/// A worker executes jobs fetched by consuming from a client.
 ///
-/// See [`Worker::builder`](struct.Worker.html#method.builder).
-pub struct WorkerBuilder<Ctx> {
-    connection_url: String,
-    context: Ctx,
-    exchanges: Vec<Exchange>,
-    handle: Handle,
-    handlers: HashMap<&'static str, Box<WorkerFn<Ctx>>>,
-    retries: HashMap<&'static str, u32>,
-    queues: Vec<Queue>,
-    parallelism: u16,
+/// The worker is responsible for polling the broker for jobs, deserializing them and execute
+/// them. It should never ever crash and sould be resilient to panic-friendly job handlers. Its
+/// `Broker` implementation is completely customizable by the user.
+///
+/// The most important thing to know about the worker is that it favours safety over performance.
+/// For each incoming job, it will spawn a new process whose only goal is to perform the job.
+/// Even if this is slower than just executing the function in a threadpool, it allows much more
+/// control: timeouts wouldn't even be possible if we were running the jobs in-process. It also
+/// protects against unpredictable crashes.
+pub struct Worker<C> {
+    client: C,
+    queues: HashSet<String>,
+    factory: Factory,
+    callbacks:
+        HashMap<String, fn(&[u8], &::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
 }
 
-impl<Ctx> fmt::Debug for WorkerBuilder<Ctx>
+impl<C> fmt::Debug for Worker<C>
 where
-    Ctx: fmt::Debug,
+    C: fmt::Debug,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
-        write!(
-            f,
-            "WorkerBuilder {{ connection_url: {:?} context: {:?} exchanges: {:?} retries: {:?} queues: {:?} }}",
-            self.connection_url, self.context, self.exchanges, self.retries, self.queues
-        )
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Worker")
+            .field("client", &self.client)
+            .field("queues", &self.queues)
+            .field("callbacks", &self.callbacks.keys())
+            .finish()
     }
 }
 
-impl<Ctx> WorkerBuilder<Ctx> {
-    fn new(context: Ctx) -> Self {
-        WorkerBuilder {
-            context,
-            connection_url: "amqp://localhost/%2f".into(),
-            exchanges: Vec::new(),
-            queues: Vec::new(),
-            handle: Handle::current(),
-            handlers: HashMap::new(),
-            retries: HashMap::new(),
-            parallelism: num_cpus::get() as u16,
-        }
-    }
-
-    /// Set the URL used to connect to `RabbitMQ`.
-    ///
-    /// The URL must be a valid AMQP connection URL (ex: `amqp://localhost/%2f`) using either the
-    /// `amqp` protocol or the `amqps` protocol.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::Worker;
-    ///
-    /// let builder = Worker::builder(())
-    ///     .connection_url("amqp://guest:guest@localhost:5672/%2f");
-    /// ```
-    pub fn connection_url(mut self, url: &str) -> Self {
-        self.connection_url = url.into();
-        self
-    }
-
-    /// Add exchanges to be declared when connecting to `RabbitMQ`.
-    ///
-    /// See `exchange` documentation.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::{exchange, Worker};
-    ///
-    /// let exchanges = vec![
-    ///     exchange("batch.example"),
-    /// ];
-    /// let builder = Worker::builder(())
-    ///     .exchanges(exchanges);
-    /// ```
-    pub fn exchanges<EIter>(mut self, exchanges: EIter) -> Self
-    where
-        EIter: IntoIterator<Item = ExchangeBuilder>,
-    {
-        self.exchanges
-            .extend(exchanges.into_iter().map(|e| e.build()));
-        self
-    }
-
-    /// Add queues to be declared when connecting to `RabbitMQ`.
-    ///
-    /// See `queue` documentation.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::{queue, Worker};
-    ///
-    /// let queues = vec![
-    ///     queue("hello-world").bind("batch.example", "hello-world"),
-    /// ];
-    /// let builder = Worker::builder(())
-    ///     .queues(queues);
-    /// ```
-    pub fn queues<QIter>(mut self, queues: QIter) -> Self
-    where
-        QIter: IntoIterator<Item = QueueBuilder>,
-    {
-        self.queues.extend(queues.into_iter().map(|q| q.build()));
-        self
-    }
-
-    /// Set the `Handle` to the Tokio reactor that should be used by the `Worker`.
+impl<C> Worker<C>
+where
+    C: Client + Send + 'static,
+{
+    /// Create a new `Worker` from a `Client` implementation.
     ///
     /// # Example
     ///
     /// ```
     /// # extern crate batch;
-    /// # extern crate tokio;
+    /// # extern crate batch_stub;
     /// #
-    /// use batch::Worker;
-    /// use tokio::reactor::Handle;
-    ///
-    /// # fn main() {
-    /// let handle = Handle::current();
-    /// let builder = Worker::builder(())
-    ///     .handle(handle);
-    /// # }
-    /// ```
-    pub fn handle(mut self, handle: Handle) -> Self {
-        self.handle = handle;
-        self
-    }
-
-    /// Register a new `Job` to be handled by the `Worker`.
-    ///
-    /// The type of the `Job`'s `Context` must be the same as the `Worker`'s.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[macro_use]
-    /// # extern crate batch;
-    /// #[macro_use]
-    /// extern crate lazy_static;
-    /// # #[macro_use]
-    /// # extern crate serde;
+    /// # use batch::Client;
     /// #
-    /// use batch::{Perform, Worker};
-    ///
-    /// #[derive(Serialize, Deserialize, Job)]
-    /// #[job_routing_key = "hello-world"]
-    /// struct SayHello {
-    ///     to: String,
-    /// }
-    ///
-    /// impl Perform for SayHello {
-    ///     type Context = ();
-    ///
-    ///     fn perform(&self, _ctx: Self::Context) {
-    ///         println!("Hello {}", self.to);
-    ///     }
-    /// }
-    ///
-    /// # fn main() {
-    /// let builder = Worker::builder(())
-    ///     .job::<SayHello>();
+    /// # fn make_client() -> impl Client {
+    /// #     ::batch_stub::Client::new()
     /// # }
-    /// ```
-    pub fn job<T>(mut self) -> Self
-    where
-        T: Job + Perform<Context = Ctx>,
-    {
-        self.handlers.insert(
-            T::name(),
-            Box::new(|data, ctx| -> Result<()> {
-                let job: T = de::from_slice(data).map_err(error::ErrorKind::Deserialization)?;
-                Perform::perform(&job, ctx);
-                Ok(())
-            }),
-        );
-        self.retries.insert(T::name(), T::retries());
-        self
-    }
-
-    /// Sets the number of jobs to execute in parallel.
-    ///
-    /// By default, the number of jobs executed in parallel is the
-    /// number of detected cores on the machine.
-    ///
-    /// # Example
-    ///
-    /// ```rust
     /// use batch::Worker;
     ///
-    /// let builder = Worker::builder(())
-    ///     .parallelism(4);
+    /// let client = make_client();
+    /// let worker = Worker::new(client);
     /// ```
-    pub fn parallelism(mut self, parallelism: u16) -> Self {
-        self.parallelism = parallelism;
-        self
-    }
-
-    /// Create a new `Worker` instance from this builder data.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::Worker;
-    ///
-    /// let builder = Worker::builder(())
-    ///     .build();
-    /// ```
-    pub fn build(self) -> Result<Worker<Ctx>> {
-        Ok(Worker {
-            connection_url: self.connection_url,
-            context: self.context,
-            handle: self.handle,
-            handlers: self.handlers,
-            exchanges: self.exchanges,
-            retries: self.retries,
-            queues: self.queues,
-            parallelism: self.parallelism,
-        })
-    }
-}
-
-/// Long-running worker polling jobs from the given `Broker`.
-pub struct Worker<Ctx> {
-    connection_url: String,
-    context: Ctx,
-    handle: Handle,
-    handlers: HashMap<&'static str, Box<WorkerFn<Ctx>>>,
-    retries: HashMap<&'static str, u32>,
-    exchanges: Vec<Exchange>,
-    queues: Vec<Queue>,
-    parallelism: u16,
-}
-
-impl<Ctx> fmt::Debug for Worker<Ctx>
-where
-    Ctx: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
-        write!(
-            f,
-            "Worker {{ connection_url: {:?} context: {:?} queues: {:?} retries: {:?} }}",
-            self.connection_url, self.context, self.queues, self.retries
-        )
-    }
-}
-
-impl<Ctx> Worker<Ctx> {
-    /// Create a new `WorkerBuilder` instance, using the mandatory context.
-    ///
-    /// The type of the given context is then used to typecheck the jobs registered on
-    /// this builder.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use batch::Worker;
-    ///
-    /// let builder = Worker::builder(());
-    /// ```
-    pub fn builder(context: Ctx) -> WorkerBuilder<Ctx> {
-        WorkerBuilder::new(context)
-    }
-
-    /// Runs the worker, polling jobs from the broker and executing them.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// extern crate batch;
-    /// # extern crate failure;
-    /// extern crate futures;
-    /// extern crate tokio;
-    ///
-    /// use batch::Worker;
-    /// # use failure::Error;
-    /// use futures::Future;
-    ///
-    /// fn main() {
-    /// #   example().unwrap();
-    /// # }
-    /// #
-    /// # fn example() -> Result<(), Error> {
-    ///     let worker = Worker::builder(())
-    ///         .build()?;
-    ///     let task = worker.run()
-    ///         .map_err(|e| eprintln!("Couldn't run worker: {}", e));
-    ///
-    /// # if false {
-    ///     tokio::run(task);
-    /// # }
-    /// # Ok(())
-    /// }
-    /// ```
-    pub fn run(self) -> Box<Future<Item = (), Error = error::Error> + Send> {
-        match env::var("BATCHRS_WORKER_IS_EXECUTOR") {
-            Ok(_) => Box::new(self.execute().into_future()),
-            Err(_) => self.supervise(),
+    pub fn new(client: C) -> Self {
+        Worker {
+            client,
+            factory: Factory::new(),
+            queues: HashSet::new(),
+            callbacks: HashMap::new(),
         }
     }
 
-    fn supervise(self) -> Box<Future<Item = (), Error = error::Error> + Send> {
-        let handle = self.handle;
-        let connection_url = self.connection_url;
-        let queues = self.queues;
-        let exchanges = self.exchanges;
-        let retries = self.retries;
-        let parallelism = self.parallelism;
-        let task = rabbitmq::Consumer::new_with_handle(
-            &connection_url,
-            exchanges.clone(),
-            queues.clone(),
-            parallelism,
-            handle.clone(),
-        ).join(rabbitmq::Publisher::new_with_handle(
-            &connection_url,
-            exchanges,
-            queues,
-            handle.clone(),
-        ))
-            .and_then(|(consumer, publisher)| {
-                trace!("Consuming incoming messages");
-                let publisher = Arc::new(publisher);
-                let retries = Arc::new(retries);
-                future::loop_fn(consumer.into_future(), move |f| {
-                    let publisher = Arc::clone(&publisher);
-                    let retries = Arc::clone(&retries);
-                    f.and_then(move |(next, consumer)| {
-                        let delivery = match next {
-                            Some(delivery) => {
-                                trace!("Got delivery: {:?}", delivery);
-                                delivery
-                            }
-                            None => {
-                                trace!("No more incoming messages");
-                                return Ok(future::Loop::Break(()));
-                            }
-                        };
-                        let handle = consumer.handle();
-                        let max_retries = *retries.get(delivery.task()).unwrap_or(&0);
-                        let task = future::lazy(move || match spawn(&delivery) {
-                            Err(e) => {
-                                error!(
-                                    "[{}] Couldn't spawn child process: {}",
-                                    delivery.task_id(),
-                                    e
-                                );
-                                reject(&handle, publisher, delivery, max_retries)
-                            }
-                            Ok(status) => match status {
-                                JobStatus::Success => {
-                                    debug!("[{}] Child execution succeeded", delivery.task_id());
-                                    handle.ack(delivery.tag())
-                                }
-                                JobStatus::Failed(_) => {
-                                    debug!("[{}] Child execution failed", delivery.task_id());
-                                    reject(&handle, publisher, delivery, max_retries)
-                                }
-                                _ => unreachable!(),
-                            },
-                        }).map(|_| ())
-                            .map_err(move |e| {
-                                error!("An error occured: {}", e);
-                            });
-                        tokio_executor::spawn(Box::new(task));
-                        Ok(future::Loop::Continue(consumer.into_future()))
-                    }).or_else(|(e, consumer)| {
-                        use failure::Fail;
-
-                        let cause = match e.kind().cause() {
-                            Some(cause) => format!(" Cause: {}", cause),
-                            None => "".into(),
-                        };
-                        error!("Couldn't receive message from consumer: {}.{}", e, cause);
-                        Ok(future::Loop::Continue(consumer.into_future()))
-                    })
-                })
-            });
-        Box::new(task)
+    /// Provide a constructor for a given type.
+    ///
+    /// See [`Factory::provide`].
+    pub fn provide<F, T>(mut self, init: F) -> Self
+    where
+        T: 'static,
+        F: Fn() -> T + Send + Sync + 'static,
+    {
+        self.factory.provide(init);
+        self
     }
 
-    fn execute(self) -> Result<()> {
-        let delivery: rabbitmq::Delivery =
-            de::from_reader(io::stdin()).map_err(error::ErrorKind::Deserialization)?;
-        if let Some(handler) = self.handlers.get(delivery.task()) {
-            if let Err(e) = (*handler)(delivery.data(), self.context) {
-                error!("Couldn't process job: {}", e);
+    /// Instruct the worker to consume jobs from the given queue.
+    ///
+    /// Note how the function takes a function returning a `Query` as parameter: you're not
+    /// supposed to write this function yourself, it should be provided by your Batch adapter.
+    ///
+    /// # Panics
+    ///
+    /// If the given provides a callback for a job already registered, and the callbacks don't
+    /// point to the same function, this method will panic.
+    pub fn queue<Q>(mut self, _ctor: impl Fn(StubJob) -> Query<StubJob, Q>) -> Self
+    where
+        Q: Queue,
+    {
+        self.queues.insert(Q::SOURCE.into());
+        for (job, callback) in Q::callbacks() {
+            if let Some(previous) = self.callbacks.insert(job.into(), callback) {
+                if previous as fn(_, _) -> _ != callback as fn(_, _) -> _ {
+                    panic!(
+                        "Two different callbacks were registered for the `{}` job.",
+                        job
+                    );
+                }
             }
-        } else {
-            warn!("No handler registered for job: `{}'", delivery.task());
         }
-        Ok(())
+        self
+    }
+
+    /// Consume deliveries from all of the declared resources.
+    pub fn work(self) -> Work {
+        if let Ok(job) = env::var("BATCHRS_WORKER_IS_EXECUTOR") {
+            let (tx, rx) = mpsc::channel::<Result<(), Error>>();
+            let tx2 = tx.clone();
+            let f = self
+                .execute(job)
+                .map(move |_| tx.send(Ok(())).unwrap())
+                .map_err(move |e| tx2.send(Err(e)).unwrap());
+            tokio_executor::spawn(f);
+            rx.recv().unwrap().unwrap();
+            process::exit(0);
+        }
+        Work(Box::new(self.supervise()))
+    }
+
+    fn supervise(mut self) -> impl Future<Item = (), Error = Error> + Send {
+        self.client
+            .to_consumer(self.queues.clone().into_iter())
+            .and_then(move |consumer| {
+                consumer.for_each(move |delivery| {
+                    debug!("delivery; job_id={}", delivery.properties().id);
+                    // TODO: use tokio_threadpool::blocking instead of spawn a task for each execution?
+                    let task = futures::lazy(
+                        move || -> Box<dyn Future<Item = (), Error = Error> + Send> {
+                            match spawn(&delivery) {
+                                Err(e) => {
+                                    error!("spawn: {}; job_id={}", e, delivery.properties().id);
+                                    Box::new(delivery.reject())
+                                }
+                                Ok(ExecutionStatus::Failed(f)) => {
+                                    warn!(
+                                        "execution; status={:?} job_id={}",
+                                        ExecutionStatus::Failed(f),
+                                        delivery.properties().id
+                                    );
+                                    Box::new(delivery.reject())
+                                }
+                                Ok(ExecutionStatus::Success) => {
+                                    debug!(
+                                        "execution; status={:?} job_id={}",
+                                        ExecutionStatus::Success,
+                                        delivery.properties().id
+                                    );
+                                    Box::new(delivery.ack())
+                                }
+                            }
+                        },
+                    ).map_err(|e| {
+                        error!("An error occured while informing the broker of the execution status: {}", e)
+                    });
+                    tokio_executor::spawn(task);
+                    Ok(())
+                })
+            })
+            .map(|_| ())
+    }
+
+    fn execute(self, job: String) -> impl Future<Item = (), Error = Error> + Send {
+        let mut input = vec![];
+        match io::stdin().read_to_end(&mut input).map_err(Error::from) {
+            Ok(_) => (),
+            Err(e) => {
+                return Box::new(future::err(e)) as Box<Future<Item = (), Error = Error> + Send>
+            }
+        };
+        let handler = match self.callbacks.get(&job) {
+            Some(handler) => handler,
+            None => {
+                return Box::new(future::err(failure::err_msg(format!(
+                    "No handler registered for {}",
+                    job
+                )))) as Box<Future<Item = (), Error = Error> + Send>
+            }
+        };
+        Box::new((*handler)(&input, &self.factory)) as Box<Future<Item = (), Error = Error> + Send>
     }
 }
 
-fn reject(
-    consumer: &rabbitmq::ConsumerHandle,
-    broker: Arc<rabbitmq::Publisher>,
-    mut delivery: rabbitmq::Delivery,
-    max_retries: u32,
-) -> Box<Future<Item = (), Error = error::Error> + Send> {
-    let task = consumer.reject(delivery.tag());
-    if delivery.should_retry(max_retries) {
-        debug!(
-            "[{}] Retry job after failure: {:?}",
-            delivery.task_id(),
-            delivery
-        );
-        Box::new(task.and_then(move |_| {
-            broker.send(
-                delivery.exchange(),
-                delivery.routing_key(),
-                delivery.data(),
-                &BasicPublishOptions::default(),
-                delivery.properties().clone(),
-            )
-        }))
-    } else {
-        task
+/// The future returned when calling `Worker::work`.
+#[must_use = "futures do nothing unless polled"]
+pub struct Work(Box<Future<Item = (), Error = Error> + Send>);
+
+impl fmt::Debug for Work {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Work").finish()
     }
 }
 
-fn spawn(delivery: &rabbitmq::Delivery) -> Result<JobStatus> {
+impl Future for Work {
+    type Item = ();
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+}
+
+#[derive(Debug)]
+enum ExecutionStatus {
+    Success,
+    Failed(ExecutionFailure),
+}
+
+#[derive(Debug)]
+enum ExecutionFailure {
+    Timeout,
+    Crash,
+    Error,
+}
+
+fn spawn(delivery: &impl Delivery) -> Result<ExecutionStatus, Error> {
     use std::io::Write;
 
-    let current_exe = env::current_exe().map_err(error::ErrorKind::SubProcessManagement)?;
+    let current_exe = env::current_exe()?;
     let mut child = process::Command::new(&current_exe)
-        .env("BATCHRS_WORKER_IS_EXECUTOR", "1")
+        .env("BATCHRS_WORKER_IS_EXECUTOR", &delivery.properties().task)
         .stdin(process::Stdio::piped())
-        .spawn()
-        .map_err(error::ErrorKind::SubProcessManagement)?;
-    let payload = ser::to_vec(&delivery).map_err(error::ErrorKind::Serialization)?;
+        .spawn()?;
     {
         let stdin = child.stdin.as_mut().expect("failed to get stdin");
-        stdin
-            .write_all(&payload)
-            .map_err(error::ErrorKind::SubProcessManagement)?;
-        stdin
-            .flush()
-            .map_err(error::ErrorKind::SubProcessManagement)?;
+        stdin.write_all(delivery.payload())?;
+        stdin.flush()?;
     }
-    let (_, timeout) = delivery.timeout();
+    let (_, timeout) = delivery.properties().timelimit;
     if let Some(duration) = timeout {
         drop(child.stdin.take());
-        if let Some(status) = child
-            .wait_timeout(duration)
-            .map_err(error::ErrorKind::SubProcessManagement)?
-        {
+        if let Some(status) = child.wait_timeout(duration)? {
             if status.success() {
-                Ok(JobStatus::Success)
+                Ok(ExecutionStatus::Success)
             } else if status.unix_signal().is_some() {
-                Ok(JobStatus::Failed(JobFailure::Crash))
+                Ok(ExecutionStatus::Failed(ExecutionFailure::Crash))
             } else {
-                Ok(JobStatus::Failed(JobFailure::Error))
+                Ok(ExecutionStatus::Failed(ExecutionFailure::Error))
             }
         } else {
-            child
-                .kill()
-                .map_err(error::ErrorKind::SubProcessManagement)?;
-            child
-                .wait()
-                .map_err(error::ErrorKind::SubProcessManagement)?;
-            Ok(JobStatus::Failed(JobFailure::Timeout))
+            child.kill()?;
+            child.wait()?;
+            Ok(ExecutionStatus::Failed(ExecutionFailure::Timeout))
         }
     } else {
-        let status = child
-            .wait()
-            .map_err(error::ErrorKind::SubProcessManagement)?;
+        let status = child.wait()?;
         if status.success() {
-            Ok(JobStatus::Success)
+            Ok(ExecutionStatus::Success)
         } else if status.code().is_some() {
-            Ok(JobStatus::Failed(JobFailure::Error))
+            Ok(ExecutionStatus::Failed(ExecutionFailure::Error))
         } else {
-            Ok(JobStatus::Failed(JobFailure::Crash))
+            Ok(ExecutionStatus::Failed(ExecutionFailure::Crash))
         }
     }
 }

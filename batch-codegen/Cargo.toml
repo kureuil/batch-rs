@@ -1,8 +1,8 @@
 [package]
 name = "batch-codegen"
-description = "Procedural macros for the batch crate"
+description = "Batch's procedural macros"
 repository = "https://github.com/kureuil/batch-rs"
-version = "0.1.0" # remember to update html_root_url
+version = "0.2.0" # remember to update html_root_url
 license = "MIT/Apache-2.0"
 authors = ["Louis Person <louis@person.guru>"]
 
@@ -10,9 +10,7 @@ authors = ["Louis Person <louis@person.guru>"]
 proc-macro = true
 
 [dependencies]
-syn = "0.14"
-quote = "0.6"
+humantime = "1.1.1"
 proc-macro2 = "0.4"
-
-[features]
-default = []
+quote = "0.6"
+syn = { version = "0.15", features = ["full", "visit-mut"] }

@@ -23,7 +23,7 @@ os:
 - osx
 
 rust:
-- stable
+# - stable
 - beta
 - nightly
 
@@ -33,10 +33,18 @@ matrix:
   - rust: nightly
   include:
   - rust: stable
-    env: RUSTFMT=YES 
+    env: ROLE=format
     script:
     - rustup component add rustfmt-preview
-    - cargo fmt -- --write-mode=diff
+    - cargo fmt --all -- --check
+  - rust: nightly
+    env: ROLE=guide
+    script:
+    - export MDBOOK_VERSION=0.2.1
+    - "wget -O mdbook.tar.gz https://github.com/rust-lang-nursery/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+    - tar xf mdbook.tar.gz
+    - cargo build --all --all-features
+    - ./mdbook test ./guide -L target/debug/deps
 
 before_install:
 - |
@@ -56,13 +64,14 @@ before_install:
   fi
 
 script:
-- cargo build --all
-- cargo test --all
+- cargo build --all --all-features
+- cargo test --all --all-features
 
 before_deploy:
-- export MDBOOK_VERSION=0.1.5
+- export MDBOOK_VERSION=0.2.1
 - "wget -O mdbook.tar.gz https://github.com/rust-lang-nursery/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz"
 - tar xf mdbook.tar.gz
+- cargo install mdbook-linkcheck
 - ./mdbook build ./guide
 
 deploy:
@@ -74,7 +83,7 @@ deploy:
   on:
     branch: master
     repo: kureuil/batch-rs
-    rust: stable
+    rust: nightly
     condition: $RUSTFMT != YES -a $TRAVIS_OS_NAME = linux
 
 notifications:

@@ -1,0 +1,17 @@
+[package]
+name = "batch-stub"
+description = "Testing utilities for the Batch library"
+repository = "https://github.com/kureuil/batch-rs"
+version = "0.2.0" # remember to update html_root_url
+license = "MIT/Apache-2.0"
+authors = ["Louis Person <louis@person.guru>"]
+
+[dependencies]
+batch = { version = "0.2", path = "../" }
+failure = "0.1"
+futures = "0.1"
+serde = "1.0"
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = "0.1"

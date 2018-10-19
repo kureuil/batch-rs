@@ -4,7 +4,7 @@ platform: x64
 
 environment:
   matrix:
-    - APPVEYOR_RUST_CHANNEL: stable
+#    - APPVEYOR_RUST_CHANNEL: stable
     - APPVEYOR_RUST_CHANNEL: beta
     - APPVEYOR_RUST_CHANNEL: nightly
 
@@ -26,8 +26,8 @@ install:
 build: false
 
 test_script:
-  - cargo build --all
-  - cargo test --all
+  - cargo build --all --all-features
+  - cargo test --all --all-features
 
 cache:
   - C:\Users\appveyor\.cargo\registry -> Cargo.lock

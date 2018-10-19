@@ -1,186 +1,122 @@
 //! A trait representing a job.
 
-use std::str::FromStr;
+use std::fmt;
 use std::time::Duration;
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use failure::Error;
+use futures::Future;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use error::{Error, ErrorKind, Result};
+use Factory;
 
 /// A job and its related metadata (name, queue, timeout, etc.)
 ///
-/// In most cases, you should be deriving this trait instead of implementing it manually yourself.
+/// In most cases, you should be using the `job` proc-macro instead of implementing it manually yourself.
 ///
 /// # Examples
 ///
-/// Using the provided defaults:
-///
 /// ```rust
-/// #[macro_use]
-/// extern crate batch;
-/// #[macro_use]
-/// extern crate lazy_static;
-/// #[macro_use]
-/// extern crate serde;
+/// # extern crate batch;
+/// use batch::job;
 ///
-/// #[derive(Deserialize, Serialize, Job)]
-/// #[job_routing_key = "emails"]
-/// struct SendConfirmationEmail;
-///
+/// #[job(name = "batch-example.send-confirmation-email")]
+/// fn send_confirmation_email(email: String) {
+/// # drop(email);
+///     // ...
+/// }
 /// #
 /// # fn main() {}
 /// ```
-///
-/// Overriding the provided defaults:
-///
-/// ```rust
-/// #[macro_use]
-/// extern crate batch;
-/// #[macro_use]
-/// extern crate lazy_static;
-/// #[macro_use]
-/// extern crate serde;
-///
-/// struct App;
-///
-/// #[derive(Deserialize, Serialize, Job)]
-/// #[job_name = "batch-rs:send-password-reset-email"]
-/// #[job_routing_key = "emails"]
-/// #[job_timeout = "120"]
-/// #[job_retries = "0"]
-/// struct SendPasswordResetEmail;
-///
-/// #
-/// # fn main() {}
-/// ```
-pub trait Job: DeserializeOwned + Serialize {
+pub trait Job: Serialize + for<'de> Deserialize<'de> {
     /// A should-be-unique human-readable ID for this job.
-    fn name() -> &'static str;
+    const NAME: &'static str;
 
-    /// The exchange the job will be published to.
-    fn exchange() -> &'static str;
+    /// The return type of the `perform` method.
+    type PerformFuture: Future<Item = (), Error = Error> + Send + 'static;
 
-    /// The routing key associated to this job.
-    fn routing_key() -> &'static str;
+    /// Perform the background job.
+    fn perform(self, context: &Factory) -> Self::PerformFuture;
 
     /// The number of times this job must be retried in case of error.
-    fn retries() -> u32;
+    ///
+    /// This function is meant to be overriden by the user to return a value different from the associated
+    /// constant depending on the contents of the actual job.
+    ///
+    /// By default, a job will be retried 25 times.
+    fn retries(&self) -> u32 {
+        25
+    }
 
     /// An optional duration representing the time allowed for this job's handler to complete.
-    fn timeout() -> Option<Duration>;
-
-    /// The priority associated to this job.
-    fn priority() -> Priority;
-}
-
-/// The different priorities that can be assigned to a `Job`.
-///
-/// The default value is `Priority::Normal`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Priority {
-    /// The lowest available priority for a job.
-    Trivial,
-    /// A lower priority than `Priority::Normal` but higher than `Priority::Trivial`.
-    Low,
-    /// The default priority for a job.
-    Normal,
-    /// A higher priority than `Priority::Normal` but higher than `Priority::Critical`.
-    High,
-    /// The highest available priority for a job.
-    Critical,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::Normal
+    ///
+    /// This function is meant to be overriden by the user to return a value different from the associated
+    /// constant depending on the contents of the actual job.
+    ///
+    /// By default, a job is allowed to run 30 minutes.
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(30 * 60)
     }
 }
 
-impl FromStr for Priority {
-    type Err = Error;
+/// Various metadata for a job.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Properties {
+    /// The language in which the job was created.
+    pub lang: String,
+    /// The name of the job.
+    pub task: String,
+    /// The ID of this job.
+    ///
+    /// To guarantee the uniqueness of this ID, a UUID version 4 used.
+    pub id: Uuid,
+    /// The ID of the greatest ancestor of this job, if there is one.
+    pub root_id: Option<Uuid>,
+    /// The ID of the direct ancestor of this job, if there is one.
+    pub parent_id: Option<Uuid>,
+    /// The ID of the group this job is part of, if there is one.
+    pub group: Option<Uuid>,
+    /// Timelimits for this job.
+    ///
+    /// The first duration represents the soft timelimit while the second duration represents the hard timelimit.
+    pub timelimit: (Option<Duration>, Option<Duration>),
+    /// The content type of the job once serialized.
+    pub content_type: String,
+    /// The content encoding of the job once serialized.
+    pub content_encoding: String,
+    __non_exhaustive: (),
+}
 
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "trivial" => Ok(Priority::Trivial),
-            "low" => Ok(Priority::Low),
-            "normal" => Ok(Priority::Normal),
-            "high" => Ok(Priority::High),
-            "critical" => Ok(Priority::Critical),
-            _ => Err(ErrorKind::InvalidPriority)?,
+impl Properties {
+    /// Create a new `Properties` instance from a task name.
+    pub fn new<T: ToString>(task: T) -> Self {
+        Properties {
+            lang: "rs".to_string(),
+            task: task.to_string(),
+            id: Uuid::new_v4(),
+            root_id: None,
+            parent_id: None,
+            group: None,
+            timelimit: (None, None),
+            content_type: "application/json".to_string(),
+            content_encoding: "utf-8".to_string(),
+            __non_exhaustive: (),
         }
     }
 }
 
-impl Priority {
-    /// Return the priority as a `u8` ranging from 0 to 4.
-    pub(crate) fn to_u8(&self) -> u8 {
-        match *self {
-            Priority::Trivial => 0,
-            Priority::Low => 1,
-            Priority::Normal => 2,
-            Priority::High => 3,
-            Priority::Critical => 4,
-        }
+impl fmt::Debug for Properties {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Properties")
+            .field("content_encoding", &self.content_encoding)
+            .field("content_type", &self.content_type)
+            .field("lang", &self.lang)
+            .field("task", &self.task)
+            .field("id", &self.id)
+            .field("timelimit", &self.timelimit)
+            .field("root_id", &self.root_id)
+            .field("parent_id", &self.parent_id)
+            .field("group", &self.group)
+            .finish()
     }
-}
-
-/// The different states a `Job` can be in.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum Status {
-    /// The job was created but it wasn't sent/received yet.
-    Pending,
-    /// The job was received by a worker that started executing it.
-    Started,
-    /// The job completed successfully.
-    Success,
-    /// The job didn't complete successfully, see attached `Failure` cause.
-    Failed(Failure),
-}
-
-/// Stores the reason for a job failure.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub enum Failure {
-    /// The job handler returned an error.
-    Error,
-    /// The job didn't complete in time.
-    Timeout,
-    /// The job crashed (panic, segfault, etc.) while executing.
-    Crash,
-}
-
-/// The `Perform` trait allow marking a `Job` as executable.
-///
-/// # Example
-///
-/// ```
-/// #[macro_use]
-/// extern crate batch;
-/// #[macro_use]
-/// extern crate lazy_static;
-/// #[macro_use]
-/// extern crate serde;
-///
-/// use batch::Perform;
-///
-/// #[derive(Serialize, Deserialize, Job)]
-/// #[job_routing_key = "emails"]
-/// struct SendPasswordResetEmail;
-///
-/// impl Perform for SendPasswordResetEmail {
-///     type Context = ();
-///
-///     fn perform(&self, _ctx: Self::Context) {
-///         println!("Sending password reset email...");
-///     }
-/// }
-///
-/// # fn main() {}
-/// ```
-pub trait Perform {
-    /// The type of the context value that will be given to this job's handler.
-    type Context;
-
-    /// Perform the job's duty.
-    fn perform(&self, Self::Context);
 }
