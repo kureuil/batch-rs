@@ -23,7 +23,7 @@ os:
 - osx
 
 rust:
-# - stable
+- stable
 - beta
 - nightly
 

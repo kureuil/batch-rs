@@ -4,7 +4,7 @@ platform: x64
 
 environment:
   matrix:
-#    - APPVEYOR_RUST_CHANNEL: stable
+    - APPVEYOR_RUST_CHANNEL: stable
     - APPVEYOR_RUST_CHANNEL: beta
     - APPVEYOR_RUST_CHANNEL: nightly
 
