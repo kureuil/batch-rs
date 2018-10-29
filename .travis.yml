@@ -23,7 +23,7 @@ os:
 - osx
 
 rust:
-# - stable
+- stable
 - beta
 - nightly
 
@@ -84,7 +84,7 @@ deploy:
     branch: master
     repo: kureuil/batch-rs
     rust: nightly
-    condition: $RUSTFMT != YES -a $TRAVIS_OS_NAME = linux
+    condition: env(ROLE) = guide AND os = linux
 
 notifications:
   email:
