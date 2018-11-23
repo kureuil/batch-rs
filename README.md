@@ -40,29 +40,34 @@ extern crate batch_rabbitmq;
 extern crate tokio;
 
 use batch::job;
-use batch_rabbitmq::{exchanges, Connection};
+use batch_rabbitmq::{queues, Connection};
+use std::path::PathBuf;
 use tokio::prelude::Future;
 
-exchanges! {
-	Transcoding {
-		name = "transcoding"
-	}
+queues! {
+    Transcoding {
+        name = "transcoding",
+        bindings = [
+            self::transcode,
+        ]
+    }
 }
 
 #[job(name = "batch-example.transcode")]
 fn transcode(path: PathBuf) {
-	// ...
+    // ...
 }
 
 fn main() {
-	let fut = Connection::open("amqp://guest:guest@localhost:5672/%2f")
-		.and_then(|conn| conn.declare(Transcoding).map(|_| conn))
-		.and_then(|conn| {
-			let job = transcode("./video.mp4".into())
-			Transcoding::with(job).deliver(&mut conn)
-		})
-		.map_err(|e| eprintln!("An error occured: {}", e));
-	tokio::run(fut);
+    let fut = Connection::build("amqp://guest:guest@localhost:5672/%2f")
+        .declare(Transcoding)
+        .connect()
+        .and_then(|mut client| {
+            let job = transcode("./video.mp4".into());
+            Transcoding(job).dispatch(&mut client)
+        })
+        .map_err(|e| eprintln!("An error occured: {}", e));
+    tokio::run(fut);
 }
 ```
 
