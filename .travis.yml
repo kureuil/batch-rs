@@ -81,10 +81,10 @@ deploy:
   target_branch: gh-pages
   local_dir: guide/book
   on:
-    branch: master
     repo: kureuil/batch-rs
+    branch: master
     rust: nightly
-    condition: env(ROLE) = guide AND os = linux
+    condition: "$ROLE == guide && $TRAVIS_OS_NAME == linux"
 
 notifications:
   email:
