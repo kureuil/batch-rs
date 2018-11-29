@@ -17,4 +17,4 @@ Examples are available on [GitHub][examples] or you can continue and read the Ge
 [RabbitMQ]: https://www.rabbitmq.com/
 [Faktory]: https://contribsys.com/faktory/
 [Amazon SQS]: https://aws.amazon.com/sqs/
-[examples]: https://github.com/kureuil/batch-rs/tree/master/batch/examples
+[examples]: https://github.com/kureuil/batch-rs/tree/master/examples
