@@ -73,7 +73,7 @@ fn main() {
 
 More examples are available on [GitHub][gh-examples] and in the [guide][user-guide].
 
-[gh-examples]: https://github.com/kureuil/batch-rs/tree/master/batch/examples
+[gh-examples]: https://github.com/kureuil/batch-rs/tree/master/examples
 [user-guide]: https://kureuil.github.io/batch-rs/
 
 ## Features
