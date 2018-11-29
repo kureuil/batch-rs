@@ -1,0 +1,22 @@
+[package]
+name = "batch-redis"
+description = "Redis adapter for batch"
+repository = "https://github.com/kureuil/batch-rs"
+version = "0.2.0" # remember to update html_root_url
+license = "MIT/Apache-2.0"
+authors = ["Louis Person <louis@person.guru>"]
+
+[dependencies]
+batch = { version = "0.2", path = "../" }
+batch-redis-codegen = { version = "0.2", path = "../batch-redis-codegen", optional = true }
+failure = "0.1"
+futures = "0.1"
+redis = "0.9"
+
+[dev-dependencies]
+env_logger = "0.5"
+tokio = "0.1"
+
+[features]
+default = ["codegen"]
+codegen = ["batch-redis-codegen"]
