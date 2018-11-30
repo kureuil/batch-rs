@@ -315,7 +315,7 @@ impl batch::Client for Connection {
 
     type Consumer = Consumer;
 
-    type ToConsumerFuture = Box<Future<Item = Self::Consumer, Error = Error> + Send>;
+    type ToConsumerFuture = ToConsumerFuture;
 
     /// Creates a consumer fetching messages from the given queues.
     ///
@@ -420,7 +420,7 @@ impl batch::Client for Connection {
                     Ok(future::Loop::Continue((combined, consumers)))
                 }).map(move |combined| Consumer::new(channel, combined))
             });
-        Box::new(task)
+        ToConsumerFuture(Box::new(task))
     }
 }
 
@@ -439,11 +439,26 @@ impl Future for SendFuture {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.0.poll() {
-            Ok(Async::Ready(_)) => Ok(Async::Ready(())),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(e),
-        }
+        self.0.poll()
+    }
+}
+
+/// The future returned when sending a dispatch to the broker.
+pub struct ToConsumerFuture(Box<dyn Future<Item = Consumer, Error = Error> + Send>);
+
+impl fmt::Debug for ToConsumerFuture {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ToConsumerFuture").finish()
+    }
+}
+
+impl Future for ToConsumerFuture {
+    type Item = Consumer;
+
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
