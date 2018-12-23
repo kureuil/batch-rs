@@ -1,7 +1,7 @@
 use failure::Error;
 use futures::{Future, Stream};
 
-use {Delivery, Dispatch};
+use crate::{Delivery, Dispatch};
 
 /// A message broker client.
 ///

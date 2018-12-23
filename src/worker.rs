@@ -13,13 +13,13 @@ use std::sync::mpsc;
 use tokio_executor;
 use wait_timeout::ChildExt;
 
-use {Client, Delivery, Factory, Query, Queue};
+use crate::{Client, Delivery, Factory, Query, Queue};
 
 mod sealed {
     use failure::Error;
     use futures::future;
     use serde::{Deserialize, Serialize};
-    use {Factory, Job};
+    use crate::{Factory, Job};
 
     /// Stub job used to trick the type system in `Connection::declare`.
     #[derive(Debug, Deserialize, Serialize)]
@@ -54,7 +54,7 @@ pub struct Worker<C> {
     queues: HashSet<String>,
     factory: Factory,
     callbacks:
-        HashMap<String, fn(&[u8], &::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
+        HashMap<String, fn(&[u8], &crate::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
 }
 
 impl<C> fmt::Debug for Worker<C>

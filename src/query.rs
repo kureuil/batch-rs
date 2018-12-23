@@ -3,9 +3,9 @@ use futures::{Async, Future, Poll};
 use log::debug;
 use std::marker::PhantomData;
 
-use dispatch::Dispatch;
+use crate::dispatch::Dispatch;
 
-use {Client, Job, Properties, Queue};
+use crate::{Client, Job, Properties, Queue};
 
 /// A fluent interface to configure jobs before dispatching them.
 ///
