@@ -1,8 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{braced, bracketed, Token};
 use syn::parse;
 use syn::punctuated::Punctuated;
+use syn::{braced, bracketed, Token};
 
 use crate::error::Error;
 
@@ -54,7 +54,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Name(s) => Some(s.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn with_priorities(&self) -> bool {
@@ -63,7 +64,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::WithPriorities(p) => Some(p.value),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or(false)
     }
 
@@ -73,7 +75,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Exclusive(e) => Some(e.value),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or(false)
     }
 
@@ -83,7 +86,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Bindings(b) => Some(b.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or_else(QueueBindings::default)
     }
 
@@ -93,7 +97,8 @@ impl QueueAttrs {
             .filter_map(|a| match a {
                 QueueAttr::Exchange(s) => Some(s.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 }
 

@@ -72,8 +72,6 @@ mod query;
 mod queue;
 mod worker;
 
-#[cfg(feature = "codegen")]
-pub use batch_codegen::job;
 pub use crate::client::{Client, Consumer};
 pub use crate::delivery::Delivery;
 pub use crate::dispatch::Dispatch;
@@ -82,3 +80,5 @@ pub use crate::job::{Job, Properties};
 pub use crate::query::{DispatchFuture, Query};
 pub use crate::queue::Queue;
 pub use crate::worker::{Work, Worker};
+#[cfg(feature = "codegen")]
+pub use batch_codegen::job;

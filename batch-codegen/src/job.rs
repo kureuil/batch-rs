@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use std::time::Duration;
-use syn::{bracketed, parse_quote, Token};
 use syn::parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
+use syn::{bracketed, parse_quote, Token};
 
 use crate::error::Error;
 
@@ -59,7 +59,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Name(s) => Some(s.value()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn wrapper(&self) -> Option<syn::Ident> {
@@ -68,7 +69,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Wrapper(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn inject(&self) -> HashSet<syn::Ident> {
@@ -77,7 +79,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Inject(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or_else(HashSet::new)
     }
 
@@ -87,7 +90,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Retries(r) => Some(r.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn timeout(&self) -> Option<(syn::LitStr, Duration)> {
@@ -96,7 +100,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Timeout(r, p) => Some((r.clone(), p.clone())),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn priority(&self) -> Option<Priority> {
@@ -105,7 +110,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Priority(p) => Some(p.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 }
 
@@ -519,7 +525,8 @@ pub(crate) fn impl_macro(
             .fold(TokenStream::new(), |mut acc, err| {
                 err.to_tokens(&mut acc);
                 acc
-            }).into()
+            })
+            .into()
     } else {
         let output = quote! {
             #job

@@ -194,7 +194,9 @@ impl batch::Delivery for Delivery {
         let delivery_tag = self.delivery_tag;
         log::debug!(
             "ack; id={} job={:?} delivery_tag={:?}",
-            id, job, delivery_tag
+            id,
+            job,
+            delivery_tag
         );
         let task = self
             .channel
@@ -209,7 +211,9 @@ impl batch::Delivery for Delivery {
         let delivery_tag = self.delivery_tag;
         log::debug!(
             "reject; id={} job={:?} delivery_tag={:?}",
-            id, job, delivery_tag
+            id,
+            job,
+            delivery_tag
         );
         let task = self
             .channel

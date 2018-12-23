@@ -158,7 +158,8 @@ impl<'u> Builder<'u> {
                     heartbeat: uri.query.heartbeat.unwrap_or(0),
                 };
                 Client::connect(stream, opts).map_err(|e| e.into())
-            }).and_then(move |(client, mut heartbeat)| {
+            })
+            .and_then(move |(client, mut heartbeat)| {
                 let handle = HeartbeatHandle(heartbeat.handle());
                 log::trace!("Spawning RabbitMQ heartbeat future");
                 spawn(heartbeat.map_err(|e| {
@@ -168,7 +169,8 @@ impl<'u> Builder<'u> {
                     .create_channel()
                     .map(|channel| (client, channel, handle))
                     .map_err(Error::from)
-            }).and_then(move |(client, channel, handle)| {
+            })
+            .and_then(move |(client, channel, handle)| {
                 let channel2 = channel.clone();
                 let tasks: Vec<_> = queues2
                     .into_iter()
@@ -179,18 +181,20 @@ impl<'u> Builder<'u> {
                                 queue.exchange().kind().as_ref(),
                                 ExchangeDeclareOptions::default(),
                                 FieldTable::new(),
-                            ).map(|_| ())
+                            )
+                            .map(|_| ())
                             .map_err(Error::from);
                         Box::new(task) as Box<Future<Item = (), Error = Error> + Send>
-                    }).collect();
+                    })
+                    .collect();
                 future::join_all(tasks).map(move |_| (client, channel, handle))
-            }).map(move |(client, channel, handle)| {
+            })
+            .map(move |(client, channel, handle)| {
                 let (publisher, consumer) = mpsc::channel(1024);
                 let (publish_task, publish_handle) = Publisher::new(channel.clone(), consumer);
-                spawn(
-                    publish_task
-                        .map_err(|e| log::error!("An error occured while processing dispatches: {}", e)),
-                );
+                spawn(publish_task.map_err(|e| {
+                    log::error!("An error occured while processing dispatches: {}", e)
+                }));
                 let inner = Inner {
                     _channel: channel,
                     _handle: handle,
@@ -353,13 +357,16 @@ impl batch::Client for Connection {
                                 queue.exchange().kind().as_ref(),
                                 ExchangeDeclareOptions::default(),
                                 FieldTable::new(),
-                            ).map(|_| (name, queue))
+                            )
+                            .map(|_| (name, queue))
                             .map_err(Error::from);
                         Box::new(task)
                             as Box<Future<Item = (String, queue::Queue), Error = Error> + Send>
-                    }).collect();
+                    })
+                    .collect();
                 future::join_all(tasks).map(|queues| (channel, queues))
-            }).and_then(move |(channel, queues)| {
+            })
+            .and_then(move |(channel, queues)| {
                 let tasks: Vec<_> = queues
                     .iter()
                     .map(|(_, queue)| {
@@ -368,11 +375,14 @@ impl batch::Client for Connection {
                                 queue.name(),
                                 QueueDeclareOptions::default(),
                                 FieldTable::new(),
-                            ).map_err(Error::from);
+                            )
+                            .map_err(Error::from);
                         Box::new(task) as Box<Future<Item = Queue, Error = Error> + Send>
-                    }).collect();
+                    })
+                    .collect();
                 future::join_all(tasks).map(|declared| (channel, queues, declared))
-            }).and_then(move |(channel, queues, declared)| {
+            })
+            .and_then(move |(channel, queues, declared)| {
                 let mut tasks = vec![];
                 for (_, queue) in queues {
                     for job in queue.callbacks().map(|(k, _v)| k) {
@@ -383,13 +393,15 @@ impl batch::Client for Connection {
                                 job,
                                 QueueBindOptions::default(),
                                 FieldTable::new(),
-                            ).map_err(Error::from);
+                            )
+                            .map_err(Error::from);
                         let boxed = Box::new(task) as Box<Future<Item = (), Error = Error> + Send>;
                         tasks.push(boxed);
                     }
                 }
                 future::join_all(tasks).map(move |_| (channel, declared))
-            }).and_then(|(channel, declared)| {
+            })
+            .and_then(|(channel, declared)| {
                 let tasks: Vec<_> = declared
                     .iter()
                     .map(|queue| {
@@ -399,15 +411,18 @@ impl batch::Client for Connection {
                                 "", // We let RabbitMQ generate the consumer tag
                                 BasicConsumeOptions::default(),
                                 FieldTable::new(),
-                            ).map_err(Error::from);
+                            )
+                            .map_err(Error::from);
                         Box::new(task)
                             as Box<
                                 Future<Item = consumer::Consumer<stream::Stream>, Error = Error>
                                     + Send,
                             >
-                    }).collect();
+                    })
+                    .collect();
                 future::join_all(tasks).map(|consumers| (channel, consumers))
-            }).and_then(|(channel, mut consumers)| {
+            })
+            .and_then(|(channel, mut consumers)| {
                 let combined: Box<
                     Stream<Item = message::Delivery, Error = Error> + Send + 'static,
                 > = Box::new(consumers.pop().unwrap().map_err(Error::from));
@@ -418,7 +433,8 @@ impl batch::Client for Connection {
                     };
                     let combined = Box::new(combined.select(stream.map_err(Error::from)));
                     Ok(future::Loop::Continue((combined, consumers)))
-                }).map(move |combined| Consumer::new(channel, combined))
+                })
+                .map(move |combined| Consumer::new(channel, combined))
             });
         Box::new(task)
     }

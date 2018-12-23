@@ -16,10 +16,10 @@ use wait_timeout::ChildExt;
 use crate::{Client, Delivery, Factory, Query, Queue};
 
 mod sealed {
+    use crate::{Factory, Job};
     use failure::Error;
     use futures::future;
     use serde::{Deserialize, Serialize};
-    use crate::{Factory, Job};
 
     /// Stub job used to trick the type system in `Connection::declare`.
     #[derive(Debug, Deserialize, Serialize)]
@@ -53,8 +53,10 @@ pub struct Worker<C> {
     client: C,
     queues: HashSet<String>,
     factory: Factory,
-    callbacks:
-        HashMap<String, fn(&[u8], &crate::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>>,
+    callbacks: HashMap<
+        String,
+        fn(&[u8], &crate::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
+    >,
 }
 
 impl<C> fmt::Debug for Worker<C>

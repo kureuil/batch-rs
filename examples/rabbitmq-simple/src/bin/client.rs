@@ -13,6 +13,7 @@ fn main() {
             let filepath = "./westworld-2x06.mkv".into();
             let job = jobs::convert_video_file(filepath, jobs::VideoFormat::Mpeg4);
             queues::Transcoding(job).dispatch(&mut client)
-        }).map_err(|e| eprintln!("An error occured: {}", e));
+        })
+        .map_err(|e| eprintln!("An error occured: {}", e));
     tokio::run(task);
 }
