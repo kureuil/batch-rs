@@ -17,7 +17,7 @@ Batch allows you to defer jobs to worker processes, by sending messages to a bro
 
 ## Installation
 
-**Minimum Rust Version:** 1.30
+**Minimum Rust Version:** 1.31
 
 Add this to your `Cargo.toml`:
 
@@ -26,6 +26,7 @@ Add this to your `Cargo.toml`:
 batch = "0.2"
 ```
 
+**Only if you're using Rust 2015 edition**  
 Then add this to your crate root:
 
 ```rust
@@ -35,10 +36,6 @@ extern crate batch;
 ## Batch in action
 
 ```rust
-extern crate batch;
-extern crate batch_rabbitmq;
-extern crate tokio;
-
 use batch::job;
 use batch_rabbitmq::{queues, Connection};
 use std::path::PathBuf;
