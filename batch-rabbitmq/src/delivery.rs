@@ -1,5 +1,5 @@
 use batch;
-use failure::Error;
+use failure::{bail, Error};
 use futures::{Future, Poll};
 use lapin::channel;
 use lapin::message;
@@ -10,7 +10,7 @@ use std::fmt;
 use std::time::Duration;
 use uuid::Uuid;
 
-use stream;
+use crate::stream;
 
 /// A delivery is a message received from RabbitMQ.
 ///
@@ -192,7 +192,7 @@ impl batch::Delivery for Delivery {
         let id = self.properties().id;
         let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!(
+        log::debug!(
             "ack; id={} job={:?} delivery_tag={:?}",
             id, job, delivery_tag
         );
@@ -207,7 +207,7 @@ impl batch::Delivery for Delivery {
         let id = self.properties().id;
         let job = &self.properties().task;
         let delivery_tag = self.delivery_tag;
-        debug!(
+        log::debug!(
             "reject; id={} job={:?} delivery_tag={:?}",
             id, job, delivery_tag
         );

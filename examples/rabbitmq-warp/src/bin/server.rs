@@ -1,12 +1,8 @@
-extern crate batch;
 extern crate batch_example_rabbitmq_warp as example;
-extern crate batch_rabbitmq;
-extern crate tokio;
-extern crate warp;
 
 use tokio::prelude::Future;
 
-use example::{endpoints, queues};
+use crate::example::{endpoints, queues};
 
 fn main() {
     let task = batch_rabbitmq::Connection::build("amqp://guest:guest@localhost/%2f")

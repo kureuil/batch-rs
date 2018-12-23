@@ -180,7 +180,7 @@ where
                 self.poll()
             }
             DispatchState::Polling(ref mut f) => {
-                let _ = try_ready!(f.poll());
+                let _ = futures::try_ready!(f.poll());
                 Ok(Async::Ready(()))
             }
         }

@@ -1,4 +1,5 @@
 [package]
+edition = "2018"
 name = "batch-example-rabbitmq-warp"
 version = "0.2.0"
 authors = ["Louis Person <louis@person.guru>"]

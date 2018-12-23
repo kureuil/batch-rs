@@ -1,6 +1,6 @@
 use amq_protocol::uri::AMQPUri;
 use batch::{self, Dispatch};
-use failure::Error;
+use failure::{bail, Error};
 use futures::sync::{mpsc, oneshot};
 use futures::{future, task, Async, Future, IntoFuture, Poll, Sink, Stream};
 use lapin::channel::{
@@ -21,10 +21,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio_executor::spawn;
 
-use consumer::Consumer;
-use declare::Declare;
-use queue;
-use stream;
+use crate::consumer::Consumer;
+use crate::declare::Declare;
+use crate::queue;
+use crate::stream;
 
 mod sealed {
     use batch;
@@ -149,7 +149,7 @@ impl<'u> Builder<'u> {
             .into_future()
             .and_then(|uri| stream::Stream::new(uri.clone()).map(|s| (s, uri)))
             .and_then(move |(stream, uri)| {
-                trace!("Connecting to RabbitMQ broker");
+                log::trace!("Connecting to RabbitMQ broker");
                 let opts = ConnectionOptions {
                     username: uri.authority.userinfo.username,
                     password: uri.authority.userinfo.password,
@@ -160,9 +160,9 @@ impl<'u> Builder<'u> {
                 Client::connect(stream, opts).map_err(|e| e.into())
             }).and_then(move |(client, mut heartbeat)| {
                 let handle = HeartbeatHandle(heartbeat.handle());
-                trace!("Spawning RabbitMQ heartbeat future");
+                log::trace!("Spawning RabbitMQ heartbeat future");
                 spawn(heartbeat.map_err(|e| {
-                    error!("Couldn't send heartbeat to RabbitMQ: {}", e);
+                    log::error!("Couldn't send heartbeat to RabbitMQ: {}", e);
                 }));
                 client
                     .create_channel()
@@ -189,7 +189,7 @@ impl<'u> Builder<'u> {
                 let (publish_task, publish_handle) = Publisher::new(channel.clone(), consumer);
                 spawn(
                     publish_task
-                        .map_err(|e| error!("An error occured while processing dispatches: {}", e)),
+                        .map_err(|e| log::error!("An error occured while processing dispatches: {}", e)),
                 );
                 let inner = Inner {
                     _channel: channel,
@@ -460,11 +460,11 @@ impl fmt::Debug for HeartbeatHandle {
 
 impl Drop for HeartbeatHandle {
     fn drop(&mut self) {
-        trace!("Signaling RabbitMQ heartbeat future to stop");
+        log::trace!("Signaling RabbitMQ heartbeat future to stop");
         if let Some(handle) = self.0.take() {
             handle.stop();
         } else {
-            warn!("Couldn't acquire heartbeat handle");
+            log::warn!("Couldn't acquire heartbeat handle");
         }
     }
 }

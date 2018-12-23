@@ -11,6 +11,7 @@ members = [
 ]
 
 [package]
+edition = "2018"
 name = "batch"
 description = "Safe & extensible background job library supporting RabbitMQ"
 homepage = "https://kureuil.github.io/batch-rs/"

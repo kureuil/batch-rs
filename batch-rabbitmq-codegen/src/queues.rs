@@ -1,11 +1,10 @@
-use proc_macro;
 use proc_macro2::{Span, TokenStream};
-use quote::ToTokens;
-use syn;
+use quote::{quote, ToTokens};
+use syn::{braced, bracketed, Token};
 use syn::parse;
 use syn::punctuated::Punctuated;
 
-use error::Error;
+use crate::error::Error;
 
 struct QueueAttrsList(Vec<QueueAttrs>);
 
@@ -122,11 +121,11 @@ impl parse::Parse for QueueAttrs {
 }
 
 mod kw {
-    custom_keyword!(name);
-    custom_keyword!(with_priorities);
-    custom_keyword!(exclusive);
-    custom_keyword!(bindings);
-    custom_keyword!(exchange);
+    syn::custom_keyword!(name);
+    syn::custom_keyword!(with_priorities);
+    syn::custom_keyword!(exclusive);
+    syn::custom_keyword!(bindings);
+    syn::custom_keyword!(exchange);
 }
 
 impl parse::Parse for QueueAttr {
@@ -275,7 +274,7 @@ fn do_parse(attrs: impl Iterator<Item = QueueAttrs>) -> Result<Vec<Queue>, Error
 }
 
 pub(crate) fn impl_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let attrs = parse_macro_input!(input as QueueAttrsList);
+    let attrs = syn::parse_macro_input!(input as QueueAttrsList);
     let queues = match do_parse(attrs.into_iter()) {
         Ok(queues) => queues,
         Err(e) => {

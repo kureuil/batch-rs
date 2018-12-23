@@ -60,18 +60,6 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-#[cfg(feature = "codegen")]
-extern crate batch_codegen;
-extern crate failure;
-#[macro_use]
-extern crate futures;
-extern crate log;
-extern crate serde;
-extern crate serde_json;
-extern crate tokio_executor;
-extern crate uuid;
-extern crate wait_timeout;
-
 mod client;
 mod delivery;
 mod dispatch;

@@ -1,4 +1,5 @@
 [package]
+edition = "2018"
 name = "batch-test"
 description = "Testing utilities for Batch adapters"
 repository = "https://github.com/kureuil/batch-rs"

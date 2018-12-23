@@ -5,7 +5,7 @@ use serde_json;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use {ConnectionBuilder, Exchange};
+use crate::{ConnectionBuilder, Exchange};
 
 /// A builder for the [`Queue`] type.
 ///

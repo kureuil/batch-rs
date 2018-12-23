@@ -1,4 +1,5 @@
 [package]
+edition = "2018"
 name = "batch-codegen"
 description = "Batch's procedural macros"
 repository = "https://github.com/kureuil/batch-rs"
