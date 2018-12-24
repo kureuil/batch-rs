@@ -4,10 +4,9 @@ use std::fmt;
 pub struct Delivery {}
 
 impl fmt::Debug for Delivery {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.debug_struct("Delivery")
-			.finish()
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Delivery").finish()
+    }
 }
 
 impl batch::Delivery for Delivery {
@@ -16,18 +15,18 @@ impl batch::Delivery for Delivery {
     type RejectFuture = Box<futures::Future<Item = (), Error = failure::Error> + Send>;
 
     fn payload(&self) -> &[u8] {
-    	unimplemented!();
+        unimplemented!();
     }
 
     fn properties(&self) -> &batch::Properties {
-    	unimplemented!();
+        unimplemented!();
     }
 
     fn ack(self) -> Self::AckFuture {
-    	unimplemented!();
+        unimplemented!();
     }
 
     fn reject(self) -> Self::RejectFuture {
-    	unimplemented!();
+        unimplemented!();
     }
 }
