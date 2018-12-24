@@ -1,7 +1,7 @@
 use failure::Error;
 use serde_json::to_vec;
 
-use {Job, Properties};
+use crate::{Job, Properties};
 
 /// A message that will be sent to a broker.
 ///

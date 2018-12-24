@@ -3,9 +3,9 @@ use futures::{Async, Future, Poll};
 use log::debug;
 use std::marker::PhantomData;
 
-use dispatch::Dispatch;
+use crate::dispatch::Dispatch;
 
-use {Client, Job, Properties, Queue};
+use crate::{Client, Job, Properties, Queue};
 
 /// A fluent interface to configure jobs before dispatching them.
 ///
@@ -169,23 +169,20 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        // FIXME: Refactor once NLL lands on stable, the weird dance to replace self.state
-        //        shouldn't be needed anymore.
-        let state = match self.state {
+        match self.state {
             DispatchState::Raw(destination, ref mut job, ref mut props) => {
                 let dispatch = Dispatch::new(
                     destination.into(),
                     job.take().unwrap(),
                     props.take().unwrap(),
                 )?;
-                DispatchState::Polling(self.client.send(dispatch))
+                self.state = DispatchState::Polling(self.client.send(dispatch));
+                self.poll()
             }
             DispatchState::Polling(ref mut f) => {
-                let _ = try_ready!(f.poll());
-                return Ok(Async::Ready(()));
+                let _ = futures::try_ready!(f.poll());
+                Ok(Async::Ready(()))
             }
-        };
-        self.state = state;
-        self.poll()
+        }
     }
 }

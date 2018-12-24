@@ -1,7 +1,7 @@
 use failure::Error;
 use futures::Future;
 
-use job::Properties;
+use crate::job::Properties;
 
 /// A message that can be received from a broker.
 pub trait Delivery: Send {

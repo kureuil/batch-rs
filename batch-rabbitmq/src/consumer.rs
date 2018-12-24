@@ -5,8 +5,8 @@ use lapin::channel;
 use lapin::message;
 use std::fmt;
 
-use delivery::Delivery;
-use stream;
+use crate::delivery::Delivery;
+use crate::stream;
 
 #[must_use = "streams do nothing unless polled"]
 pub struct Consumer {
@@ -39,14 +39,14 @@ impl Stream for Consumer {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let delivery = match try_ready!(self.inner.poll()) {
+        let delivery = match futures::try_ready!(self.inner.poll()) {
             Some(delivery) => delivery,
             None => return Ok(Async::Ready(None)),
         };
         let delivery = match Delivery::new(delivery, self.channel.clone()) {
             Ok(delivery) => delivery,
             Err(e) => {
-                error!("Couldn't handle incoming delivery: {}", e);
+                log::error!("Couldn't handle incoming delivery: {}", e);
                 task::current().notify();
                 return Ok(Async::NotReady);
             }

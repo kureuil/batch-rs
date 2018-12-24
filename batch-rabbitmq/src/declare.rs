@@ -1,4 +1,4 @@
-use ConnectionBuilder;
+use crate::ConnectionBuilder;
 
 /// A trait used to declare queues to RabbitMQ.
 pub trait Declare {

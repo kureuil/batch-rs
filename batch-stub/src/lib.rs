@@ -8,11 +8,6 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-extern crate batch;
-extern crate failure;
-extern crate futures;
-extern crate serde;
-
 mod client;
 
-pub use client::Client;
+pub use crate::client::Client;

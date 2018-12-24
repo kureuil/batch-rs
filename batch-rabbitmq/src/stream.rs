@@ -18,13 +18,13 @@ pub enum Stream {
 
 impl Stream {
     pub(crate) fn new(uri: AMQPUri) -> impl Future<Item = Self, Error = Error> {
-        trace!("Establishing TCP connection");
+        log::trace!("Establishing TCP connection");
         net::TcpStream::connect((uri.authority.host.clone().as_ref(), uri.authority.port))
             .map_err(Error::from)
             .into_future()
             .and_then(move |stream| {
                 let task = if uri.scheme == AMQPScheme::AMQP {
-                    trace!("Wrapping TCP connection into tokio-tcp");
+                    log::trace!("Wrapping TCP connection into tokio-tcp");
                     let handle = Handle::current();
                     let task = TcpStream::from_std(stream, &handle)
                         .map(Stream::Raw)
@@ -32,7 +32,7 @@ impl Stream {
                         .into_future();
                     Box::new(task) as Box<Future<Item = Stream, Error = Error> + Send>
                 } else {
-                    trace!("Wrapping TCP connection into tokio-tls");
+                    log::trace!("Wrapping TCP connection into tokio-tls");
                     let host = uri.authority.host.clone();
                     let task = TlsConnector::builder()
                         .map_err(|e| e.into())
@@ -44,7 +44,8 @@ impl Stream {
                                 .map_err(|e| e.into())
                                 .into_future()
                                 .map(|s| (s, connector))
-                        }).and_then(move |(stream, connector)| {
+                        })
+                        .and_then(move |(stream, connector)| {
                             connector
                                 .connect_async(&host, stream)
                                 .map(Stream::Tls)

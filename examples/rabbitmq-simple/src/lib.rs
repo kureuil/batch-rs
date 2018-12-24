@@ -1,7 +1,3 @@
-extern crate batch;
-extern crate batch_rabbitmq;
-extern crate serde;
-
 pub mod queues {
     use batch_rabbitmq::queues;
 

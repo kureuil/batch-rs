@@ -60,18 +60,6 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-#[cfg(feature = "codegen")]
-extern crate batch_codegen;
-extern crate failure;
-#[macro_use]
-extern crate futures;
-extern crate log;
-extern crate serde;
-extern crate serde_json;
-extern crate tokio_executor;
-extern crate uuid;
-extern crate wait_timeout;
-
 mod client;
 mod delivery;
 mod dispatch;
@@ -84,13 +72,13 @@ mod query;
 mod queue;
 mod worker;
 
+pub use crate::client::{Client, Consumer};
+pub use crate::delivery::Delivery;
+pub use crate::dispatch::Dispatch;
+pub use crate::factory::Factory;
+pub use crate::job::{Job, Properties};
+pub use crate::query::{DispatchFuture, Query};
+pub use crate::queue::Queue;
+pub use crate::worker::{Work, Worker};
 #[cfg(feature = "codegen")]
 pub use batch_codegen::job;
-pub use client::{Client, Consumer};
-pub use delivery::Delivery;
-pub use dispatch::Dispatch;
-pub use factory::Factory;
-pub use job::{Job, Properties};
-pub use query::{DispatchFuture, Query};
-pub use queue::Queue;
-pub use worker::{Work, Worker};

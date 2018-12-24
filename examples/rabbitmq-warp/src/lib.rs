@@ -1,14 +1,3 @@
-extern crate batch;
-extern crate batch_rabbitmq;
-extern crate batch_stub;
-#[cfg(test)]
-extern crate env_logger;
-extern crate futures;
-extern crate serde;
-#[cfg(test)]
-extern crate tokio;
-extern crate warp;
-
 pub mod queues {
     use batch_rabbitmq::queues;
 
@@ -53,10 +42,8 @@ pub mod jobs {
 
 pub mod endpoints {
     use super::{jobs, queues};
-    use batch;
-    use batch_rabbitmq;
     use futures::Future;
-    use warp::{self, Filter, Rejection, Reply};
+    use warp::{Filter, Rejection, Reply};
 
     fn transcode(
         mut client: impl batch::Client,
@@ -81,8 +68,6 @@ pub mod endpoints {
     #[cfg(test)]
     mod test {
         use super::*;
-        use batch_stub;
-        use env_logger;
         use tokio::runtime::current_thread::Runtime;
 
         #[test]

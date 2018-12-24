@@ -1,11 +1,9 @@
-use batch;
 use failure::Error;
-use futures::{self, future};
+use futures::future;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 mod sealed {
-    use batch;
     use failure::Error;
     use futures::future;
     use serde::{Deserialize, Serialize};

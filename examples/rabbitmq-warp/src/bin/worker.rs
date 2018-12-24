@@ -1,13 +1,8 @@
-extern crate batch;
 extern crate batch_example_rabbitmq_warp as example;
-extern crate batch_rabbitmq;
-extern crate env_logger;
-extern crate failure;
-extern crate tokio;
 
 use tokio::prelude::Future;
 
-use example::queues;
+use crate::example::queues;
 
 fn main() {
     env_logger::init();

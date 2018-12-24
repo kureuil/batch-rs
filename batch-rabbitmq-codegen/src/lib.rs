@@ -4,12 +4,8 @@
 #![doc(html_root_url = "https://docs.rs/batch-rabbitmq-codegen/0.2.0")]
 #![deny(missing_debug_implementations)]
 
+// Still needed despite Rust 2018 edition.
 extern crate proc_macro;
-extern crate proc_macro2;
-#[macro_use]
-extern crate quote;
-#[macro_use]
-extern crate syn;
 
 use proc_macro::TokenStream;
 

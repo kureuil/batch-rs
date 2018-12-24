@@ -11,13 +11,8 @@
 #![doc(html_root_url = "https://docs.rs/batch-codegen/0.2.0")]
 #![deny(missing_debug_implementations)]
 
-extern crate humantime;
+// Still needed despite Rust 2018 edition.
 extern crate proc_macro;
-extern crate proc_macro2;
-#[macro_use]
-extern crate quote;
-#[macro_use]
-extern crate syn;
 
 mod error;
 mod job;

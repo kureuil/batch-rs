@@ -8,7 +8,7 @@ use futures::Future;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use Factory;
+use crate::Factory;
 
 /// A job and its related metadata (name, queue, timeout, etc.)
 ///

@@ -1,17 +1,15 @@
 use std::collections::HashSet;
 
-use humantime;
-use proc_macro;
 use proc_macro2::{Span, TokenStream};
-use quote::ToTokens;
+use quote::{quote, quote_spanned, ToTokens};
 use std::time::Duration;
-use syn;
 use syn::parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
+use syn::{bracketed, parse_quote, Token};
 
-use error::Error;
+use crate::error::Error;
 
 #[derive(Clone)]
 struct JobAttrs {
@@ -61,7 +59,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Name(s) => Some(s.value()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn wrapper(&self) -> Option<syn::Ident> {
@@ -70,7 +69,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Wrapper(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn inject(&self) -> HashSet<syn::Ident> {
@@ -79,7 +79,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Inject(i) => Some(i.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
             .unwrap_or_else(HashSet::new)
     }
 
@@ -89,7 +90,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Retries(r) => Some(r.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn timeout(&self) -> Option<(syn::LitStr, Duration)> {
@@ -98,7 +100,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Timeout(r, p) => Some((r.clone(), p.clone())),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 
     fn priority(&self) -> Option<Priority> {
@@ -107,7 +110,8 @@ impl JobAttrs {
             .filter_map(|a| match a {
                 JobAttr::Priority(p) => Some(p.clone()),
                 _ => None,
-            }).next()
+            })
+            .next()
     }
 }
 
@@ -121,12 +125,12 @@ impl parse::Parse for JobAttrs {
 }
 
 mod kw {
-    custom_keyword!(name);
-    custom_keyword!(wrapper);
-    custom_keyword!(inject);
-    custom_keyword!(retries);
-    custom_keyword!(timeout);
-    custom_keyword!(priority);
+    syn::custom_keyword!(name);
+    syn::custom_keyword!(wrapper);
+    syn::custom_keyword!(inject);
+    syn::custom_keyword!(retries);
+    syn::custom_keyword!(timeout);
+    syn::custom_keyword!(priority);
 }
 
 impl parse::Parse for JobAttr {
@@ -171,11 +175,11 @@ impl parse::Parse for JobAttr {
 }
 
 mod priorities {
-    custom_keyword!(trivial);
-    custom_keyword!(low);
-    custom_keyword!(normal);
-    custom_keyword!(high);
-    custom_keyword!(critical);
+    syn::custom_keyword!(trivial);
+    syn::custom_keyword!(low);
+    syn::custom_keyword!(normal);
+    syn::custom_keyword!(high);
+    syn::custom_keyword!(critical);
 }
 
 impl parse::Parse for Priority {
@@ -508,8 +512,8 @@ pub(crate) fn impl_macro(
     args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let attrs = parse_macro_input!(args as JobAttrs);
-    let mut item = parse_macro_input!(input as syn::ItemFn);
+    let attrs = syn::parse_macro_input!(args as JobAttrs);
+    let mut item = syn::parse_macro_input!(input as syn::ItemFn);
     let mut job = match Job::new(attrs) {
         Ok(job) => job,
         Err(e) => return quote!(#e).into(),
@@ -521,7 +525,8 @@ pub(crate) fn impl_macro(
             .fold(TokenStream::new(), |mut acc, err| {
                 err.to_tokens(&mut acc);
                 acc
-            }).into()
+            })
+            .into()
     } else {
         let output = quote! {
             #job

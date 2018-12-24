@@ -3,7 +3,7 @@
 use failure::Error;
 use futures::Future;
 
-use Factory;
+use crate::Factory;
 
 /// A resource that has to be declared to be used.
 ///
