@@ -1,3 +1,5 @@
+use redis::r#async::Connection as RedisConnection;
+use redis::r#async::SharedConnection as RedisSharedConnection;
 use std::fmt;
 
 use crate::consumer::Consumer;
@@ -7,7 +9,7 @@ use crate::consumer::Consumer;
 /// This is the main struct of this crate.
 #[derive(Clone)]
 pub struct Connection {
-    inner: redis::r#async::SharedConnection,
+    inner: RedisSharedConnection,
 }
 
 impl Connection {
@@ -43,10 +45,12 @@ impl fmt::Debug for Connection {
 }
 
 impl batch::Client for Connection {
-    type SendFuture = Box<futures::Future<Item = (), Error = failure::Error> + Send>;
+    type SendFuture = SendFuture;
 
-    fn send(&mut self, _dispatch: batch::Dispatch) -> Self::SendFuture {
-        unimplemented!();
+    fn send(&mut self, dispatch: batch::Dispatch) -> Self::SendFuture {
+        SendFuture {
+        	state: SendFutureState::Initial(Some(self.inner.clone()), dispatch)
+        }
     }
 
     type Consumer = Consumer;
@@ -63,6 +67,7 @@ impl batch::Client for Connection {
 }
 
 /// The future returned when opening a connection to a Redis server.
+#[must_use = "futures do nothing unless polled"]
 pub struct OpenFuture<P> {
     state: OpenFutureState<P>,
 }
@@ -72,15 +77,10 @@ enum OpenFutureState<P> {
         params: Option<P>,
     },
     Connecting {
-        fut: Box<
-            futures::Future<Item = redis::r#async::Connection, Error = redis::RedisError> + Send,
-        >,
+        fut: Box<futures::Future<Item = RedisConnection, Error = redis::RedisError> + Send>,
     },
     Sharing {
-        fut: Box<
-            futures::Future<Item = redis::r#async::SharedConnection, Error = redis::RedisError>
-                + Send,
-        >,
+        fut: Box<futures::Future<Item = RedisSharedConnection, Error = redis::RedisError> + Send>,
     },
 }
 
@@ -114,7 +114,7 @@ where
             OpenFutureState::Connecting { ref mut fut } => match fut.poll() {
                 Ok(futures::Async::Ready(conn)) => {
                     self.state = OpenFutureState::Sharing {
-                        fut: redis::r#async::SharedConnection::new(conn),
+                        fut: RedisSharedConnection::new(conn),
                     };
                     self.poll()
                 }
@@ -171,5 +171,51 @@ impl From<failure::Context<ErrorKind>> for OpenError {
 impl From<ErrorKind> for OpenError {
     fn from(kind: ErrorKind) -> OpenError {
         OpenError(failure::Context::new(kind))
+    }
+}
+
+/// The future returned when dispatching a job to the Redis server.
+#[must_use = "futures do nothing unless polled"]
+pub struct SendFuture {
+	state: SendFutureState,
+}
+
+enum SendFutureState {
+    Initial(Option<RedisSharedConnection>, batch::Dispatch),
+    Sending(redis::RedisFuture<(RedisSharedConnection, ())>),
+}
+
+impl fmt::Debug for SendFuture {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		f.debug_struct("SendFuture")
+			.finish()
+	}
+}
+
+impl futures::Future for SendFuture {
+    type Item = ();
+
+    type Error = failure::Error;
+
+    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
+        match &mut self.state {
+            SendFutureState::Initial(conn, dispatch) => {
+            	#[derive(serde::Serialize, serde::Deserialize)]
+				struct RedisDispatch(Vec<u8>, batch::Properties);
+
+            	let payload = serde_json::to_vec(&RedisDispatch(dispatch.payload().to_vec(), dispatch.properties().clone())).unwrap();
+                let f = redis::cmd("LPUSH")
+                    .arg(dispatch.destination())
+                    .arg(payload)
+                    .query_async(conn.take().expect("initial state should only be called once"));
+                self.state = SendFutureState::Sending(f);
+                self.poll()
+            }
+            SendFutureState::Sending(ref mut f) => match f.poll() {
+                Ok(futures::Async::Ready(_)) => Ok(futures::Async::Ready(())),
+                Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
+                Err(e) => Err(failure::Error::from(e)),
+            },
+        }
     }
 }

@@ -13,8 +13,11 @@ batch-redis-codegen = { version = "0.2", path = "../batch-redis-codegen", option
 failure = "0.1"
 futures = "0.1"
 redis = "0.9"
+serde = "1.0"
+serde_json = "1.0"
 
 [dev-dependencies]
+batch-test = { version = "0.2", path = "../batch-test" }
 env_logger = "0.5"
 tokio = "0.1"
 

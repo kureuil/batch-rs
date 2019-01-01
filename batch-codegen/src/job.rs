@@ -448,6 +448,7 @@ impl ToTokens for Job {
         );
 
         let wrapper_struct = quote! {
+            #[doc(hidden)]
             #[derive(#export::Deserialize, #export::Serialize)]
             #vis struct #wrapper {
                 #serialized_fields
@@ -476,6 +477,11 @@ impl ToTokens for Job {
                 }
 
                 impl #wrapper {
+                    /// Synchronously performs the job.
+                    ///
+                    /// # Parameters
+                    /// 
+                    /// Takes the job's arguments marked as injected as parameters.
                     #vis fn perform_now(self, #injected_fields) -> #ret_ty {
                         #deserialized_bindings
                         #inner_block

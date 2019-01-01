@@ -24,6 +24,7 @@ Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
 batch = "0.2"
+serde = "1.0"
 ```
 
 **Only if you're using Rust 2015 edition**  
