@@ -1,4 +1,4 @@
-use failure::Error;
+use std::error::Error;
 use futures::{Future, Stream};
 
 use crate::{Delivery, Dispatch};
@@ -12,7 +12,7 @@ use crate::{Delivery, Dispatch};
 /// performance constraint could be relaxed.
 pub trait Client: Clone {
     /// The type of the future returned by `send`.
-    type SendFuture: Future<Item = (), Error = Error> + Send;
+    type SendFuture: Future<Item = (), Error = Box<dyn Error + Send>> + Send;
 
     /// Send a dispatch to the message broker.
     fn send(&mut self, dispatch: Dispatch) -> Self::SendFuture;
@@ -21,7 +21,7 @@ pub trait Client: Clone {
     type Consumer: Consumer;
 
     /// The return type of the `to_consumer` method.
-    type ToConsumerFuture: Future<Item = Self::Consumer, Error = Error> + Send;
+    type ToConsumerFuture: Future<Item = Self::Consumer, Error = Box<dyn Error + Send>> + Send;
 
     /// Create a consumer of deliveries coming from the given sources.
     fn to_consumer(
@@ -31,7 +31,7 @@ pub trait Client: Clone {
 }
 
 /// A consumer of deliveries coming from a message broker.
-pub trait Consumer: Stream<Item = <Self as Consumer>::Delivery, Error = Error> + Send {
+pub trait Consumer: Stream<Item = <Self as Consumer>::Delivery, Error = Box<dyn Error + Send>> + Send {
     /// The type of message yielded by the consumer.
     type Delivery: Delivery;
 }

@@ -1,6 +1,6 @@
 //! Utilities for declaring resources
 
-use failure::Error;
+use std::error::Error;
 use futures::Future;
 
 use crate::Factory;
@@ -19,7 +19,7 @@ pub trait Queue: Sized {
     type CallbacksIterator: Iterator<
         Item = (
             &'static str,
-            fn(&[u8], &Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
+            fn(&[u8], &Factory) -> Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>,
         ),
     >;
 

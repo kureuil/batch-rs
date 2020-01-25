@@ -1,4 +1,4 @@
-pub use failure::Error;
+pub use std::error::Error;
 pub use futures::future::ok;
 pub use futures::Future;
 pub use futures::IntoFuture;

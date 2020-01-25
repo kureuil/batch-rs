@@ -1,4 +1,4 @@
-use failure::Error;
+use std::error::Error;
 use futures::Future;
 
 use crate::job::Properties;
@@ -6,10 +6,10 @@ use crate::job::Properties;
 /// A message that can be received from a broker.
 pub trait Delivery: Send {
     /// The return type of the `ack` method.
-    type AckFuture: Future<Item = (), Error = Error> + Send;
+    type AckFuture: Future<Item = (), Error = Box<dyn Error + Send>> + Send;
 
     /// The return type of the `reject` method.
-    type RejectFuture: Future<Item = (), Error = Error> + Send;
+    type RejectFuture: Future<Item = (), Error = Box<dyn Error + Send>> + Send;
 
     /// The serialized `Job` instance associated to this delivery.
     fn payload(&self) -> &[u8];

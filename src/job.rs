@@ -3,7 +3,7 @@
 use std::fmt;
 use std::time::Duration;
 
-use failure::Error;
+use std::error::Error;
 use futures::Future;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -33,7 +33,7 @@ pub trait Job: Serialize + for<'de> Deserialize<'de> {
     const NAME: &'static str;
 
     /// The return type of the `perform` method.
-    type PerformFuture: Future<Item = (), Error = Error> + Send + 'static;
+    type PerformFuture: Future<Item = (), Error = Box<dyn Error + Send>> + Send + 'static;
 
     /// Perform the background job.
     fn perform(self, context: &Factory) -> Self::PerformFuture;

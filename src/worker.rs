@@ -1,6 +1,6 @@
 //! Batch Worker.
 
-use failure::{self, Error};
+use std::error::Error;
 use futures::{self, future, Future, Poll, Stream};
 use log::{debug, error, warn};
 use std::collections::{HashMap, HashSet};
@@ -16,8 +16,8 @@ use wait_timeout::ChildExt;
 use crate::{Client, Delivery, Factory, Query, Queue};
 
 mod sealed {
+    use std::error::Error;
     use crate::{Factory, Job};
-    use failure::Error;
     use futures::future;
     use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ mod sealed {
     impl Job for StubJob {
         const NAME: &'static str = "";
 
-        type PerformFuture = future::FutureResult<(), Error>;
+        type PerformFuture = future::FutureResult<(), Box<dyn Error + Send>>;
 
         fn perform(self, _ctx: &Factory) -> Self::PerformFuture {
             future::ok(())
@@ -55,7 +55,7 @@ pub struct Worker<C> {
     factory: Factory,
     callbacks: HashMap<
         String,
-        fn(&[u8], &crate::Factory) -> Box<dyn Future<Item = (), Error = Error> + Send>,
+        fn(&[u8], &crate::Factory) -> Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>,
     >,
 }
 
@@ -145,7 +145,7 @@ where
     /// Consume deliveries from all of the declared resources.
     pub fn work(self) -> Work {
         if let Ok(job) = env::var("BATCHRS_WORKER_IS_EXECUTOR") {
-            let (tx, rx) = mpsc::channel::<Result<(), Error>>();
+            let (tx, rx) = mpsc::channel::<Result<(), Box<dyn Error + Send>>>();
             let tx2 = tx.clone();
             let f = self
                 .execute(job)
@@ -158,7 +158,7 @@ where
         Work(Box::new(self.supervise()))
     }
 
-    fn supervise(mut self) -> impl Future<Item = (), Error = Error> + Send {
+    fn supervise(mut self) -> impl Future<Item = (), Error = Box<dyn Error + Send>> + Send {
         self.client
             .to_consumer(self.queues.clone().into_iter())
             .and_then(move |consumer| {
@@ -166,7 +166,7 @@ where
                     debug!("delivery; job_id={}", delivery.properties().id);
                     // TODO: use tokio_threadpool::blocking instead of spawn a task for each execution?
                     let task = futures::lazy(
-                        move || -> Box<dyn Future<Item = (), Error = Error> + Send> {
+                        move || -> Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send> {
                             match spawn(&delivery) {
                                 Err(e) => {
                                     error!("spawn: {}; job_id={}", e, delivery.properties().id);
@@ -200,30 +200,30 @@ where
             .map(|_| ())
     }
 
-    fn execute(self, job: String) -> impl Future<Item = (), Error = Error> + Send {
+    fn execute(self, job: String) -> impl Future<Item = (), Error = Box<dyn Error + Send>> + Send {
         let mut input = vec![];
-        match io::stdin().read_to_end(&mut input).map_err(Error::from) {
+        match io::stdin().read_to_end(&mut input).map_err(|e| crate::QuickError::boxed(e)) {
             Ok(_) => (),
             Err(e) => {
-                return Box::new(future::err(e)) as Box<Future<Item = (), Error = Error> + Send>
+                return Box::new(future::err(e)) as Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>
             }
         };
         let handler = match self.callbacks.get(&job) {
             Some(handler) => handler,
             None => {
-                return Box::new(future::err(failure::err_msg(format!(
+                return Box::new(future::err(crate::QuickError::boxed(format!(
                     "No handler registered for {}",
                     job
-                )))) as Box<Future<Item = (), Error = Error> + Send>
+                )))) as Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>
             }
         };
-        Box::new((*handler)(&input, &self.factory)) as Box<Future<Item = (), Error = Error> + Send>
+        Box::new((*handler)(&input, &self.factory)) as Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>
     }
 }
 
 /// The future returned when calling `Worker::work`.
 #[must_use = "futures do nothing unless polled"]
-pub struct Work(Box<Future<Item = (), Error = Error> + Send>);
+pub struct Work(Box<dyn Future<Item = (), Error = Box<dyn Error + Send>> + Send>);
 
 impl fmt::Debug for Work {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -234,7 +234,7 @@ impl fmt::Debug for Work {
 impl Future for Work {
     type Item = ();
 
-    type Error = Error;
+    type Error = Box<dyn Error + Send>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.0.poll()
@@ -254,23 +254,23 @@ enum ExecutionFailure {
     Error,
 }
 
-fn spawn(delivery: &impl Delivery) -> Result<ExecutionStatus, Error> {
+fn spawn(delivery: &impl Delivery) -> Result<ExecutionStatus, Box<dyn Error + Send>> {
     use std::io::Write;
 
-    let current_exe = env::current_exe()?;
+    let current_exe = env::current_exe().map_err(crate::QuickError::boxed)?;
     let mut child = process::Command::new(&current_exe)
         .env("BATCHRS_WORKER_IS_EXECUTOR", &delivery.properties().task)
         .stdin(process::Stdio::piped())
-        .spawn()?;
+        .spawn().map_err(crate::QuickError::boxed)?;
     {
         let stdin = child.stdin.as_mut().expect("failed to get stdin");
-        stdin.write_all(delivery.payload())?;
-        stdin.flush()?;
+        stdin.write_all(delivery.payload()).map_err(crate::QuickError::boxed)?;
+        stdin.flush().map_err(crate::QuickError::boxed)?;
     }
     let (_, timeout) = delivery.properties().timelimit;
     if let Some(duration) = timeout {
         drop(child.stdin.take());
-        if let Some(status) = child.wait_timeout(duration)? {
+        if let Some(status) = child.wait_timeout(duration).map_err(crate::QuickError::boxed)? {
             if status.success() {
                 Ok(ExecutionStatus::Success)
             } else if status.unix_signal().is_some() {
@@ -279,12 +279,12 @@ fn spawn(delivery: &impl Delivery) -> Result<ExecutionStatus, Error> {
                 Ok(ExecutionStatus::Failed(ExecutionFailure::Error))
             }
         } else {
-            child.kill()?;
-            child.wait()?;
+            child.kill().map_err(crate::QuickError::boxed)?;
+            child.wait().map_err(crate::QuickError::boxed)?;
             Ok(ExecutionStatus::Failed(ExecutionFailure::Timeout))
         }
     } else {
-        let status = child.wait()?;
+        let status = child.wait().map_err(crate::QuickError::boxed)?;
         if status.success() {
             Ok(ExecutionStatus::Success)
         } else if status.code().is_some() {

@@ -1,4 +1,4 @@
-use failure::Error;
+use std::error::Error;
 use futures::{Async, Future, Poll};
 use log::debug;
 use std::marker::PhantomData;
@@ -166,7 +166,7 @@ where
 {
     type Item = ();
 
-    type Error = Error;
+    type Error = Box<dyn Error + Send>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.state {
@@ -175,7 +175,7 @@ where
                     destination.into(),
                     job.take().unwrap(),
                     props.take().unwrap(),
-                )?;
+                ).map_err(|e| crate::QuickError::boxed(e))?;
                 self.state = DispatchState::Polling(self.client.send(dispatch));
                 self.poll()
             }

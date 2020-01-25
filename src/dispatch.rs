@@ -1,4 +1,4 @@
-use failure::Error;
+use std::error::Error;
 use serde_json::to_vec;
 
 use crate::{Job, Properties};
@@ -22,9 +22,9 @@ impl Dispatch {
         destination: String,
         job: impl Job,
         properties: Properties,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, Box<dyn Error + Send>> {
         Ok(Dispatch {
-            payload: to_vec(&job).map_err(|e| Error::from(e))?,
+            payload: to_vec(&job).map_err(|e| crate::QuickError::boxed(e))?,
             destination,
             properties,
         })
