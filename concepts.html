@@ -1,0 +1,220 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Concepts - Batch Guide</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="User guide for the batch-rs library.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+    </head>
+    <body class="light">
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">var path_to_root = "";</script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
+            if (theme === null || theme === undefined) { theme = 'light'; }
+            document.body.className = theme;
+            document.querySelector('html').className = theme + ' js';
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <ol class="chapter"><li class="affix"><a href="batch.html">Batch</a></li><li><a href="concepts.html" class="active"><strong aria-hidden="true">1.</strong> Concepts</a></li><li><a href="jobs.html"><strong aria-hidden="true">2.</strong> Jobs</a></li><li><a href="rabbitmq/index.html"><strong aria-hidden="true">3.</strong> RabbitMQ</a></li><li><ol class="section"><li><a href="rabbitmq/getting-started.html"><strong aria-hidden="true">3.1.</strong> Getting Started</a></li><li><a href="rabbitmq/exchanges.html"><strong aria-hidden="true">3.2.</strong> Exchanges</a></li><li><a href="rabbitmq/queues.html"><strong aria-hidden="true">3.3.</strong> Queues</a></li></ol></li><li><a href="worker/index.html"><strong aria-hidden="true">4.</strong> Worker</a></li></ol>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar" class="menu-bar">
+                    <div id="menu-bar-sticky-container">
+                        <div class="left-buttons">
+                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                                <i class="fa fa-bars"></i>
+                            </button>
+                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                                <i class="fa fa-paint-brush"></i>
+                            </button>
+                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            </ul>
+                            
+                            <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            
+                        </div>
+
+                        <h1 class="menu-title">Batch Guide</h1> 
+
+                        <div class="right-buttons">
+                            <a href="print.html" title="Print this book" aria-label="Print this book">
+                                <i id="print-button" class="fa fa-print"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <a class="header" href="#concepts" id="concepts"><h1>Concepts</h1></a>
+<p>If you're not familiar with Rust or background job libraries, some aspects of batch can feel opaque. Hopefully this page will help clear this up and let you enjoy your projects to the fullest.</p>
+<a class="header" href="#job" id="job"><h2>Job</h2></a>
+<p>A job is a unit of work that you want to defer to a <em>Worker</em> process. For example, imagine you're building a shiny new web application and you want to send the user an email when they sign up. You could send the email synchronously, but this often lead to a poor user experience: maybe the email could take a few seconds to send, making the application feel not very responsive, or maybe the email couldn't be sent because of a spurious network error, or maybe your email provider is down for maintenance. Instead, to guarantee an optimal user experience you will send the job to execute to a message broker which will then be sent to a <em>Worker</em> process that will execute it. If the execution fails, the job can be retried either until its retries limit is reached or until it succeeds.</p>
+<p>More generally there are two kinds of work you'll want defer:</p>
+<ul>
+<li>Work that has a dependency on an external service, external meaning &quot;on which you have no control, especially in regard to downtime&quot; (e.g: sending emails, etc).</li>
+<li>Work that might take more than a few seconds to complete (e.g: compressing uploaded image files, re-encode video files, etc).</li>
+</ul>
+<a class="header" href="#at-least-once-delivery--idempotency" id="at-least-once-delivery--idempotency"><h3>At-least once delivery &amp; idempotency</h3></a>
+<p>One thing that you must keep in mind when you write a job is that it can be executed multimes times, even if it previously succeeded. Writing software is hard, but writing distributed software is even harder: it is possible that because of multiple message broker servers not synchronizing fast enough, or because a connection to a worker gets lost, the same job is given to two different workers. The best you can do to protect yourself is to make your jobs idempotent: meaning your job should <em>always produce the same output</em> regardless of how many times it is performed.</p>
+<a class="header" href="#serialization" id="serialization"><h3>Serialization</h3></a>
+<p>In order to send your jobs to message brokers, Batch uses a technic known as serialization: it transforms your in-memory structures with unstable representations into a stable representations that can be used to create a structure that should be identical to the original. Because of this, there's some points you should keep in mind when using batch / declaring jobs:</p>
+<ul>
+<li><strong>Try to send the minimum amount of information.</strong> Serialization is a linear process, to serialize a structure you have to analyze all of its contents, so the fewer and smaller elements, the faster. For example, instead of sending your <code>User</code> struct to your job, send the user's ID and fetch it from the database in the job.</li>
+<li><strong>Do not send sensible information.</strong> There's no guarantee of privacy / secrecy on message brokers, so you really don't want to put API credentials or user passwords in your job payloads. Instead, you should try to use the <a href="jobs.html#injecting-external-values">inject</a> feature of Batch for some of these cases.</li>
+</ul>
+<a class="header" href="#queue" id="queue"><h2>Queue</h2></a>
+<p>A queue is the source of jobs for worker processes. It is represented as a never-ending stream of incoming deliveries stating which job should be executed and the environment they should be executed in. In order to consume from a queue, you have to explicitely declare it to your message broker. Instead of using external configuration files, Batch leverages Rust's powerful macro system to ensure your code complies with your expectations (e.g: you shouldn't be able to set a priority on your job if your message broker doesn't support it, with Batch this becomes a compile-time error).</p>
+<a class="header" href="#worker" id="worker"><h2>Worker</h2></a>
+<p>A worker is the name given to the process that will subscribe to queues and execute the associated code. It is a long running process that should not crash.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+                            <a rel="prev" href="batch.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+
+                        
+                            <a rel="next" href="jobs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+                    <a href="batch.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+                    <a href="jobs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+
+    </body>
+</html>

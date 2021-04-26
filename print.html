@@ -1,0 +1,622 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Batch Guide</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="User guide for the batch-rs library.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+    </head>
+    <body class="light">
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">var path_to_root = "";</script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
+            if (theme === null || theme === undefined) { theme = 'light'; }
+            document.body.className = theme;
+            document.querySelector('html').className = theme + ' js';
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <ol class="chapter"><li class="affix"><a href="batch.html">Batch</a></li><li><a href="concepts.html"><strong aria-hidden="true">1.</strong> Concepts</a></li><li><a href="jobs.html"><strong aria-hidden="true">2.</strong> Jobs</a></li><li><a href="rabbitmq/index.html"><strong aria-hidden="true">3.</strong> RabbitMQ</a></li><li><ol class="section"><li><a href="rabbitmq/getting-started.html"><strong aria-hidden="true">3.1.</strong> Getting Started</a></li><li><a href="rabbitmq/exchanges.html"><strong aria-hidden="true">3.2.</strong> Exchanges</a></li><li><a href="rabbitmq/queues.html"><strong aria-hidden="true">3.3.</strong> Queues</a></li></ol></li><li><a href="worker/index.html"><strong aria-hidden="true">4.</strong> Worker</a></li></ol>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar" class="menu-bar">
+                    <div id="menu-bar-sticky-container">
+                        <div class="left-buttons">
+                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                                <i class="fa fa-bars"></i>
+                            </button>
+                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                                <i class="fa fa-paint-brush"></i>
+                            </button>
+                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            </ul>
+                            
+                            <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            
+                        </div>
+
+                        <h1 class="menu-title">Batch Guide</h1> 
+
+                        <div class="right-buttons">
+                            <a href="print.html" title="Print this book" aria-label="Print this book">
+                                <i id="print-button" class="fa fa-print"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <a class="header" href="#batch" id="batch"><h1>Batch</h1></a>
+<p>A background job library written in Rust.</p>
+<p>Batch allows you to defer jobs to worker processes, by sending messages to a broker. It is a type-safe library that favors safety over performance in order to minimize risk and avoid mistakes. It leverages the <a href="https://crates.io/crates/futures"><code>futures</code></a> &amp; <a href="https://crates.io/crates/tokio"><code>tokio</code></a> crates to provide asynchronous operations to the user.</p>
+<p>Batch doesn't tie you to a particular message broker implementation: a bunch of adapters are bundled in the library but you are free to write your own to accomodate your requirements. As of today batch provides adapters for the following message brokers:</p>
+<ul>
+<li><a href="https://www.rabbitmq.com/">RabbitMQ</a>: <a href="./rabbitmq/index.html">Go to the associated guide section</a></li>
+<li>Stub: <a href="./batch.html">Go to the associated guide section</a></li>
+</ul>
+<p>Examples are available on <a href="https://github.com/kureuil/batch-rs/tree/master/examples">GitHub</a> or you can continue and read the Getting Started guide for the message broker of your choice.</p>
+<a class="header" href="#concepts" id="concepts"><h1>Concepts</h1></a>
+<p>If you're not familiar with Rust or background job libraries, some aspects of batch can feel opaque. Hopefully this page will help clear this up and let you enjoy your projects to the fullest.</p>
+<a class="header" href="#job" id="job"><h2>Job</h2></a>
+<p>A job is a unit of work that you want to defer to a <em>Worker</em> process. For example, imagine you're building a shiny new web application and you want to send the user an email when they sign up. You could send the email synchronously, but this often lead to a poor user experience: maybe the email could take a few seconds to send, making the application feel not very responsive, or maybe the email couldn't be sent because of a spurious network error, or maybe your email provider is down for maintenance. Instead, to guarantee an optimal user experience you will send the job to execute to a message broker which will then be sent to a <em>Worker</em> process that will execute it. If the execution fails, the job can be retried either until its retries limit is reached or until it succeeds.</p>
+<p>More generally there are two kinds of work you'll want defer:</p>
+<ul>
+<li>Work that has a dependency on an external service, external meaning &quot;on which you have no control, especially in regard to downtime&quot; (e.g: sending emails, etc).</li>
+<li>Work that might take more than a few seconds to complete (e.g: compressing uploaded image files, re-encode video files, etc).</li>
+</ul>
+<a class="header" href="#at-least-once-delivery--idempotency" id="at-least-once-delivery--idempotency"><h3>At-least once delivery &amp; idempotency</h3></a>
+<p>One thing that you must keep in mind when you write a job is that it can be executed multimes times, even if it previously succeeded. Writing software is hard, but writing distributed software is even harder: it is possible that because of multiple message broker servers not synchronizing fast enough, or because a connection to a worker gets lost, the same job is given to two different workers. The best you can do to protect yourself is to make your jobs idempotent: meaning your job should <em>always produce the same output</em> regardless of how many times it is performed.</p>
+<a class="header" href="#serialization" id="serialization"><h3>Serialization</h3></a>
+<p>In order to send your jobs to message brokers, Batch uses a technic known as serialization: it transforms your in-memory structures with unstable representations into a stable representations that can be used to create a structure that should be identical to the original. Because of this, there's some points you should keep in mind when using batch / declaring jobs:</p>
+<ul>
+<li><strong>Try to send the minimum amount of information.</strong> Serialization is a linear process, to serialize a structure you have to analyze all of its contents, so the fewer and smaller elements, the faster. For example, instead of sending your <code>User</code> struct to your job, send the user's ID and fetch it from the database in the job.</li>
+<li><strong>Do not send sensible information.</strong> There's no guarantee of privacy / secrecy on message brokers, so you really don't want to put API credentials or user passwords in your job payloads. Instead, you should try to use the <a href="jobs.html#injecting-external-values">inject</a> feature of Batch for some of these cases.</li>
+</ul>
+<a class="header" href="#queue" id="queue"><h2>Queue</h2></a>
+<p>A queue is the source of jobs for worker processes. It is represented as a never-ending stream of incoming deliveries stating which job should be executed and the environment they should be executed in. In order to consume from a queue, you have to explicitely declare it to your message broker. Instead of using external configuration files, Batch leverages Rust's powerful macro system to ensure your code complies with your expectations (e.g: you shouldn't be able to set a priority on your job if your message broker doesn't support it, with Batch this becomes a compile-time error).</p>
+<a class="header" href="#worker" id="worker"><h2>Worker</h2></a>
+<p>A worker is the name given to the process that will subscribe to queues and execute the associated code. It is a long running process that should not crash.</p>
+<a class="header" href="#jobs" id="jobs"><h1>Jobs</h1></a>
+<a class="header" href="#declaring-a-job" id="declaring-a-job"><h2>Declaring a job</h2></a>
+<p>The simplest way to declare a job is to create a function, and then annotate it with Batch's <a href="https://docs.rs/batch/0.2/index.html"><code>job</code></a> procedural macro:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+#[job(name = &quot;batch-example.say-hello&quot;)]
+fn say_hello(name: String) {
+    println!(&quot;Hello {}!&quot;, name);
+}
+#}</code></pre></pre>
+<a class="header" href="#return-value-of-a-job" id="return-value-of-a-job"><h2>Return value of a job</h2></a>
+<p>As of today, the <a href="https://docs.rs/batch/0.2/index.html"><code>job</code></a> macro only supports two types of return values:</p>
+<ul>
+<li>either the function return a unit value (the <code>()</code> type);</li>
+<li>either the function return a value that implements the <a href="https://docs.rs/futures/0.1/futures/future/trait.IntoFuture.html"><code>IntoFuture</code></a> trait (amongst others, it is implemented for both <code>Future</code> and <code>Result</code>)</li>
+</ul>
+<p>The macro not being capable of determining whether the function complies with the above requirements means that if you made a mistake, the compiler will error and the message might not be the clearest, so keep that in mind if you encounter a compile error on one of your job.</p>
+<a class="header" href="#injecting-external-values" id="injecting-external-values"><h2>Injecting external values</h2></a>
+<p>More often than not, your job will need values that can't or shouldn't be transfered in their message payload. For example, you might need a connection handle to your database, or a mail API client instance, or even the contents of a configuration file. To solve this problem, Batch allow you to mark arguments as <em>&quot;injected&quot;</em>. This is done by using the <code>inject</code> parameter of the <code>job</code> attribute:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+#
+# struct UserRepository;
+# struct Mailer;
+
+#[job(name = &quot;batch-example.send-hello&quot;, inject = [ repository, mailer ])]
+fn send_hello(user_id: i32, repository: UserRepository, mailer: Mailer) {
+    # drop(user_id);
+    # drop(repository);
+    # drop(mailer);
+    // ...
+}
+#}</code></pre></pre>
+<p>In the example above, Batch will only put the <code>user_id</code> parameter in the underlying structure, and will fetch the values for the <code>repository</code> and the <code>mailer</code> values when performing the job. These values are registered on the executor of the job which more often than not will be Batch's own <a href="./worker/index.html"><code>Worker</code></a>.</p>
+<a class="header" href="#configuring-the-job" id="configuring-the-job"><h2>Configuring the job</h2></a>
+<a class="header" href="#changing-the-number-of-retries" id="changing-the-number-of-retries"><h3>Changing the number of retries</h3></a>
+<p>By default, a job will be tried 25 times before being declared failed and dropped into a dead-letter queue. This gives you plenty of time to fix your job's implementation. If you wish to change this number, you can do so by using the <code>retries</code> parameter of the job procedural macro:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+#[job(name = &quot;batch-example.send-hello&quot;, retries = 10)]
+fn send_hello(to: String) {
+    println!(&quot;Hello {}&quot;, to);
+}
+
+#[job(name = &quot;batch-example.send-goodbye&quot;, retries = 50)]
+fn send_goodbye(to: String) {
+    println!(&quot;Goodbye {}&quot;, to);
+}
+#}</code></pre></pre>
+<a class="header" href="#changing-the-timeout-for-the-jobs-execution" id="changing-the-timeout-for-the-jobs-execution"><h3>Changing the timeout for the job's execution</h3></a>
+<p>By default, a job is given 30 minutes to complete. If you wish to change this number, you can do so by using the <code>timeout</code> parameter of the <code>job</code> procedural macro with the number of seconds the job should be allowed to run:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+// This job will have 1 minute to complete.
+#[job(name = &quot;batch-example.send-hello&quot;, timeout = &quot;1minute&quot;)]
+fn send_hello(to: String) {
+    println!(&quot;Hello {}&quot;, to);
+}
+
+// This job will have 3 hours and 30 minutes to complete.
+#[job(name = &quot;batch-example.send-goodbye&quot;, timeout = &quot;3hours 30mins&quot;)]
+fn send_goodbye(to: String) {
+    println!(&quot;Goodbye {}&quot;, to);
+}
+#}</code></pre></pre>
+<p>The timeout parser supports the given suffixes:</p>
+<ul>
+<li><code>nsec</code>, <code>ns</code> <em>-- microseconds</em></li>
+<li><code>usec</code>, <code>us</code> <em>-- microseconds</em></li>
+<li><code>msec</code>, <code>ms</code> <em>-- milliseconds</em></li>
+<li><code>seconds</code>, <code>second</code>, <code>sec</code>, <code>s</code></li>
+<li><code>minutes</code>, <code>minute</code>, <code>min</code>, <code>m</code></li>
+<li><code>hours</code>, <code>hour</code>, <code>hr</code>, <code>h</code></li>
+<li><code>days</code>, <code>day</code>, <code>d</code></li>
+<li><code>weeks</code>, <code>week</code>, <code>w</code></li>
+<li><code>months</code>, <code>month</code>, <code>M</code> <em>-- defined as 30.44 days</em></li>
+<li><code>years</code>, <code>year</code>, <code>y</code> <em>-- defined as 365.25 days</em></li>
+</ul>
+<a class="header" href="#changing-the-job-priority" id="changing-the-job-priority"><h3>Changing the job priority</h3></a>
+<p>By default, a job is assigned the <code>Normal</code> priority. If you wish to change this, you can use the <code>priority</code> parameter of the <code>job</code> procedural macro with one of <code>trivial</code>, <code>low</code>, <code>normal</code>, <code>high</code>, <code>critical</code>:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+// This job will be assigned the `low` priority.
+#[job(name = &quot;batch-example.send-hello&quot;, priority = low)]
+fn send_hello(to: String) {
+    println!(&quot;Hello {}&quot;, to);
+}
+
+// This job will be assigned the `critical` priority.
+#[job(name = &quot;batch-example.send-goodbye&quot;, priority = critical)]
+fn send_goodbye(to: String) {
+    println!(&quot;Goodbye {}&quot;, to);
+}
+#}</code></pre></pre>
+<hr />
+<a class="header" href="#under-the-hood" id="under-the-hood"><h2>Under the hood</h2></a>
+<p>Annotating a function with the <a href="https://docs.rs/batch/0.2/index.html"><code>job</code></a> procedural macro will do two things:</p>
+<ul>
+<li>Create a new structure deriving Serde's <a href="https://docs.serde.rs/serde/trait.Serialize.html"><code>Serialize</code></a> &amp; <a href="https://docs.serde.rs/serde/trait.Deserialize.html"><code>Deserialize</code></a> traits, that stores all of the <em>non-provided</em> (see below) function arguments. This implies that all of the arguments must also implement Serde's <a href="https://docs.serde.rs/serde/trait.Serialize.html"><code>Serialize</code></a> &amp; <a href="https://docs.serde.rs/serde/trait.Deserialize.html"><code>Deserialize</code></a> traits. More importantly, this new structure also implements Batch's <a href="https://docs.rs/batch/0.2/index.html"><code>Job</code></a> trait.</li>
+<li>Change the annotated function to return an instance of the newly defined structure (see previous bullet point), allowing for easy scheduling of the job.</li>
+</ul>
+<a class="header" href="#get-or-set-the-underlying-struct-of-a-job" id="get-or-set-the-underlying-struct-of-a-job"><h2>Get or set the underlying struct of a job</h2></a>
+<p>When invoked, <a href="https://docs.rs/batch/0.2/index.html"><code>job</code></a> procedural macro will generate a new structure declaration containing the arguments for the job, and implementing the <a href="https://docs.rs/batch/0.2/index.html"><code>Job</code></a> trait. The name of this structure is the same as the function is comes from. This is made possible by the fact that in Rust, structures and functions don't share the same namespace:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+#[job(name = &quot;batch-example.say-hello&quot;)]
+fn say_hello(name: String) {
+    // ...
+}
+
+// Would generate code roughly equivalent to:
+
+# mod generated_do_not_copy_paste_this_please {
+struct say_hello {
+    name: String
+}
+# }
+#}</code></pre></pre>
+<p>Hopefully, this simple naming scheme should not conflict with already existing code. If you ever happen to be in this situation, Batch allows you to set the name of the structure that will be generated, by using the <code>wrapper</code> parameter:</p>
+<pre><pre class="playpen"><code class="language-rust">
+# #![allow(unused_variables)]
+#fn main() {
+extern crate batch;
+
+use batch::job;
+
+#[job(name = &quot;batch-example.say-hello&quot;, wrapper = MySuperAwesomeJob)]
+fn say_hello(name: String) {
+    // ...
+}
+
+// Would generate code roughly equivalent to:
+
+# mod generated_do_not_copy_paste_this_please {
+struct MySuperAwesomeJob {
+    name: String
+}
+# }
+#}</code></pre></pre>
+<a class="header" href="#rabbitmq" id="rabbitmq"><h1>RabbitMQ</h1></a>
+<p><a href="https://www.rabbitmq.com">RabbitMQ</a> is a popular message broker that implements the AMQP/0.9.1 protocol often used in enterprise settings thanks to its replication &amp; clustering capabilities.</p>
+<p>Batch provides an official adapter for RabbitMQ by enabling the <code>rabbitmq</code> feature in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+batch = { version = &quot;0.2&quot;, features = [&quot;rabbitmq&quot;] }
+</code></pre>
+<p>Batch only supports versions of RabbitMQ that are officially supported by Pivotal, which means RabbitMQ 3.7+. If you encounter an problem using batch with an older version of RabbitMQ we won't be able to fix it. You are free to submit a bug fix but we reserve ourselves the right to refuse it if we think it will induce too much work to maintain it.</p>
+<a class="header" href="#getting-started" id="getting-started"><h1>Getting started</h1></a>
+<p>The first thing you'll want to do once you've installed <code>batch</code> is connect to a message broker. Batch provides a few adapters for popular choices amongst message brokers, but you can also write your own adapter if you want to. In this guide we'll use the RabbitMQ adapter (don't forget to enable the <code>rabbitmq</code> feature when installing batch).</p>
+<p>Let's begin by connection to a broker:</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use tokio::prelude::*;
+
+fn main() {
+    let f = batch_rabbitmq::Connection::open(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        .map(|conn| {
+#           drop(conn);
+            println!(&quot;We're connected to RabbitMQ!&quot;);
+        })
+        .map_err(|e| eprintln!(&quot;An error occured while connecting to RabbitMQ: {}&quot;, e));
+
+# if false {
+    tokio::run(f);
+# }
+}
+</code></pre></pre>
+<p>Now that we've acquired a connection to our RabbitMQ server, we'll write our first [job]. There are two ways of defining a job with batch: the high-level one consists of writing a function and annotate it with the <code>job</code> attribute, the low-level one consists of declaring a structure and implementing <code>batch::Job</code> manually. For now we'll use the high-level way:</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch::job;
+use tokio::prelude::*;
+
+#[job(name = &quot;batch-example.say-hello&quot;)]
+fn say_hello(name: String) {
+    println!(&quot;Hello {}!&quot;, name);
+}
+
+fn main() {
+    let f = batch_rabbitmq::Connection::open(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        .map(|conn| {
+#           drop(conn);
+            println!(&quot;We're connected to RabbitMQ!&quot;);
+        })
+        .map_err(|e| eprintln!(&quot;An error occured while connecting to RabbitMQ: {}&quot;, e));
+
+# if false {
+    tokio::run(f);
+# }
+}
+</code></pre></pre>
+<blockquote>
+<p><strong>Note</strong>: the <code>job</code> procedural macro will generate a structure that derives Serde's <code>Serialize</code> &amp; <code>Deserialize</code>. That means that the arguments of your function must implement these traits.</p>
+</blockquote>
+<blockquote>
+<p><strong>Note</strong>: The string given to the <code>job</code> procedural macro as a parameter of the name of the job. You should strive for unique job names, ideally structured by domain (e.g: prefix all jobs related to media files compression by <code>&quot;media-compress.&quot;</code>).</p>
+</blockquote>
+<p>Now that we have our job, we want to send it to our RabbitMQ server. To do that we need to declare a queue, using the <code>queues!</code> macro:</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch::job;
+use batch_rabbitmq::queues;
+use tokio::prelude::*;
+
+queues! {
+    Example {
+        name = &quot;batch-example.exchange&quot;,
+        bindings = [
+            say_hello,
+        ],
+    }
+}
+
+#[job(name = &quot;batch-example.say-hello&quot;)]
+fn say_hello(name: String) {
+    println!(&quot;Hello {}!&quot;, name);
+}
+
+fn main() {
+    let f = batch_rabbitmq::Connection::build(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        .declare(Example)
+        .connect()
+        .and_then(|mut client| {
+            let job = say_hello(&quot;Ferris&quot;.to_string());
+            Example(job).dispatch(&amp;mut client)
+        })
+        .map_err(|e| eprintln!(&quot;An error occured while connecting to RabbitMQ: {}&quot;, e));
+
+# if false {
+    tokio::run(f);
+# }
+}
+</code></pre></pre>
+<blockquote>
+<p>Note how we're declaring the exchange by giving its name as a parameter and not by using the infamous turbofish syntax.</p>
+</blockquote>
+<p>Now that our job has been published to our broker, we'll need to fetch it and assign a function to this job. To do this, we'll create a new program, a <em><a href="../worker/index.html">worker</a></em>.</p>
+<a class="header" href="#exchanges" id="exchanges"><h1>Exchanges</h1></a>
+<p>In RabbitMQ parlance you don't publish messages to a queue but to an exchange. Batch abstracts away this behavior behind a unified <code>Queue</code> trait. When you declare your queue, an exchange with the same name is implicitly declared. But sometimes you want to have control about what example declared and how. To do that, you can use the <code>exchange</code> property of the <code>queues!</code> macro:</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch_rabbitmq::queues;
+use tokio::prelude::*;
+
+queues! {
+    Example {
+        name = &quot;batch.example&quot;,
+        exchange = &quot;batch.example-exchange&quot;,
+    }
+}
+
+fn main() {
+    let fut = batch_rabbitmq::Connection::build(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        .declare(Example)
+        .connect()
+        .and_then(|client| {
+#           drop(client);
+            /* The `batch.example-exchange` exchange is now declared. */
+            Ok(())
+        })
+        .map_err(|e| eprintln!(&quot;An error occured while declaring the queue: {}&quot;, e));
+
+# if false {
+    tokio::run(fut);
+# }
+}
+</code></pre></pre>
+<a class="header" href="#queues" id="queues"><h1>Queues</h1></a>
+<a class="header" href="#worker-1" id="worker-1"><h1>Worker</h1></a>
+<p>As explained in the <em><a href="../concepts.html">Concepts</a></em> chapter, a worker consumes &amp; executes jobs delivered by a message broker. Batch comes with a worker implementation with semantics heavily inspired by the <a href="https://github.com/resque/resque">Resque</a> project. Like Resque, it assumes chaos: eventually your jobs will crash, or get stuck computing a value, or will be unable to contact an external service, in any way the <code>Worker</code> process shouldn't be affected by the execution of the jobs it is responsible for and be as resilient as possible against failure.</p>
+<p>Maintaining such guarantees means that this <code>Worker</code> implementation isn't the most performant one, it is however one of the safest if you're not sure that your jobs are infallible. For example, because this implementation supports job timeouts it has to execute the job in a new process which is considered an expensive operation compared to spawning a thread. Due to this behavior (spawning a new process for each job execution), we will refer to this implementation as a <em>&quot;Forking Worker&quot;</em>.</p>
+<a class="header" href="#adding-a-worker-to-your-project" id="adding-a-worker-to-your-project"><h2>Adding a worker to your project</h2></a>
+<p>The easiest way to integrate the forking worker is to create a new binary (e.g: <code>src/bin/worker.rs</code>). This makes sure that your main command-line interface will not conflict with the worker, and vice-versa. The <code>Worker</code> struct is built using a <code>Client</code> instance, this makes it possible to use the same <code>Worker</code> implementation with any message broker adapter. In this example, we will be using the RabbitMQ adapter:</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch::job;
+use batch_rabbitmq::queues;
+use batch::Worker;
+use tokio::prelude::*;
+
+queues! {
+    Example {
+        name = &quot;example&quot;,
+        bindings = [
+            say_hello
+        ]
+    }
+}
+
+#[job(name = &quot;batch-example.say-hello&quot;)]
+fn say_hello(name: String) {
+    println!(&quot;Hello {}!&quot;, name);
+}
+
+fn main() {
+    // First, we configure the connection to our message broker
+    let f = batch_rabbitmq::Connection::build(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        // We declare our queue &amp; exchange against RabbitMQ
+        .declare(Example)
+        // We establish the connection
+        .connect()
+        // Then, we create our worker instance &amp; register the queue we will consume from
+        .map(|client| Worker::new(client).queue(Example))
+        // And finally, we consume incoming jobs
+        .and_then(|worker| worker.work())
+        .map_err(|e| eprintln!(&quot;An error occured: {}&quot;, e));
+
+# if false {
+    tokio::run(f);
+# }
+}
+</code></pre></pre>
+<a class="header" href="#worker-provided-values" id="worker-provided-values"><h2>Worker-provided values</h2></a>
+<p>Some of your jobs will undoubtly have to depend on values that can't be serialized (e.g: a connection to a database or credentials for your third party services). On one hand, you can't really easily serialize them, on the other hand you don't want to re-instantiate every time you need them. Batch gives you a solution to this problem: you provide a callback returning an instance of a resource to your worker, and your worker will use them to fill out values marked as <em>&quot;injected&quot;</em> on your jobs.</p>
+<pre><pre class="playpen"><code class="language-rust">extern crate batch;
+extern crate batch_rabbitmq;
+extern crate tokio;
+
+use batch::job;
+use batch_rabbitmq::queues;
+use tokio::prelude::*;
+#
+# mod diesel {
+#   pub struct PgConn;
+# }
+
+queues! {
+    Maintenance {
+        name = &quot;maintenance&quot;,
+        bindings = [
+            count_active_users
+        ]
+    }
+}
+
+#[job(name = &quot;batch-example.count-active-users&quot;, inject = [ db ])]
+fn count_active_users(db: diesel::PgConn) {
+    # drop(db);
+    // ...
+}
+
+fn init_database_conn() -&gt; diesel::PgConn {
+    // ...
+#     diesel::PgConn
+}
+
+fn main() {
+    let f = batch_rabbitmq::Connection::build(&quot;amqp://guest:guest@localhost:5672/%2f&quot;)
+        .declare(Maintenance)
+        .connect()
+        .map(|conn|
+            batch::Worker::new(conn)
+                .provide(init_database_conn)
+                .queue(Maintenance)
+        )
+        .and_then(|worker| worker.work())
+        .map_err(|e| eprintln!(&quot;An error occured while executing the worker: {}&quot;, e));
+
+# if false {
+    tokio::run(f);
+# }
+}
+</code></pre></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+        
+        <script type="text/javascript">
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+        
+        
+
+    </body>
+</html>
